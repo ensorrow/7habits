@@ -1,27 +1,43 @@
 # AGENTS.md
 
+## Project overview
+
+**7 Habits Mentor Agent (7习惯导师 Agent)** — a value-driven mentor (not an assistant) built around Stephen Covey's *7 Habits*. Product vision and behavior live in `REQUIREMENTS.md` (Chinese). The end product is a **macOS-native app** (menu-bar + conversation window) that reads/writes the system Calendar & Reminders via **EventKit**.
+
+To make the product testable in ordinary (Linux/CI) environments while keeping the native app, the code is organized for **layered validation** (hexagonal / ports-and-adapters):
+
+| Layer | What | Where it runs | How it's validated |
+|-------|------|---------------|--------------------|
+| **L1 – Agent core** (`packages/core`) | Platform-agnostic mentor logic: role/mission model, weekly-review projection, "declaration vs behavior" observations, intervention budget/priority. Depends only on the `CalendarSource` port. | Anywhere (Node/browser) | Headless unit tests (`pnpm test`) |
+| **L2 – Browser harness** (`apps/web`) | "Mentor Playground": a React app wiring the core to an in-memory `CalendarSource`. This is the **agent-browser** validation surface. | Linux / Cursor Cloud | Dev server + browser (computer use) |
+| **L3 – macOS shell** (not yet built) | SwiftUI menu-bar app + EventKit adapter implementing `CalendarSource`. | **macOS only** | macOS / macOS CI (see skill) |
+
+The key seam is the `CalendarSource` port in `packages/core/src/types.ts`: the browser and tests inject a mock; the macOS shell will inject an EventKit-backed adapter. Same mentor logic, three validation surfaces.
+
 ## Cursor Cloud specific instructions
 
-### Repository status: requirements-only (greenfield)
+### What runs here (Linux) and what does not
 
-As of this writing, this repository contains **no application code**. It holds only:
+- **L1 (core) and L2 (web) run fully in Cursor Cloud** and are the intended validation targets here.
+- **L3 (macOS app) cannot build or run in Cursor Cloud.** The VM is Ubuntu Linux; `swift`/`xcodebuild` and EventKit are macOS-only. Validate L3 on macOS/macOS CI. See `.cursor/skills/macos-layered-validation.md`.
+- Keep macOS-only code isolated behind the `CalendarSource` port so it never blocks L1/L2 validation here.
 
-- `README.md` — a one-line title.
-- `REQUIREMENTS.md` — the product requirements document (in Chinese) for **"7 Habits Mentor Agent" (7习惯导师 Agent)**.
+### Commands (run from repo root)
 
-There are no source files, dependency manifests, lockfiles, build scripts, `Makefile`, `.devcontainer`, or `.cursor/environment.json`. Consequently:
+Standard scripts are defined in the root `package.json`; prefer them over ad-hoc commands.
 
-- **There is nothing to install, build, run, lint, or test yet.** Environment setup is a no-op until real code lands.
-- The update script is intentionally a no-op. Once a real project is added, update both the update script (dependency refresh only) and this file.
+- Install: `pnpm install` (also the update script; pnpm is the package manager — `pnpm-lock.yaml`).
+- Lint/format: `pnpm lint` (Biome) · autofix with `pnpm lint:fix`.
+- Typecheck: `pnpm typecheck`.
+- Test (core, headless): `pnpm test`.
+- Build all: `pnpm build`.
+- Run the playground (dev): `pnpm dev` → Vite on `http://localhost:5173` (bound to `0.0.0.0`).
 
-### Target platform constraint
+### Non-obvious notes
 
-`REQUIREMENTS.md` describes a **macOS-native app** (menu-bar app + conversation window) that integrates with the system Calendar and Reminders via Apple's **EventKit** framework. This implies a **Swift/SwiftUI + Xcode** toolchain.
+- `@7habits/core` is consumed as **TypeScript source** (its package `exports` points at `src/index.ts`); Vite/Vitest transpile it. So the web app does **not** require a prior `pnpm --filter @7habits/core build` during dev — edits to core hot-reload in the browser.
+- pnpm blocks dependency build scripts by default. The needed ones (`esbuild`, `@biomejs/biome`) are pre-approved via `pnpm.onlyBuiltDependencies` in the root `package.json`; if you add deps with install scripts, add them there rather than running the interactive `pnpm approve-builds`.
+- The mentor's observations are **deterministic and evidence-grounded by design** (no LLM/API key required to validate behavior). An LLM can later phrase observations; do not make core logic depend on it, or L1/L2 validation will start needing secrets.
+- `packages/core/src/sampleData.ts` is intentionally shaped so the "健康/health" role is declared important but has **zero** calendar time — that is what triggers the flagship confrontation and the demo flow. Changing those fixtures may change what the mentor says in tests and the playground.
 
-- This toolchain is **macOS-only**. Cursor Cloud VMs are Linux (Ubuntu 24.04); `swift` and `xcodebuild` are not available and EventKit cannot run here.
-- A macOS app therefore **cannot be built or run in this cloud environment**. If code for the macOS app is added, it will need to be built/tested on macOS (e.g. locally or in macOS CI), not in Cursor Cloud.
-- If, instead, non-macOS components are added later (for example an LLM backend service, a web dashboard, or shared libraries in Node/Python/etc.), those *can* be developed and tested here — set up their tooling at that point.
-
-### Baseline toolchains available on the VM
-
-For reference, the VM already provides: Node 22 (npm/pnpm/yarn), Python 3.12 (pip), Go, Rust (cargo), Java 21, gcc/make. Docker and the Swift/Xcode toolchain are **not** installed.
+For browser validation steps, see `.cursor/skills/agent-browser-validation.md`.

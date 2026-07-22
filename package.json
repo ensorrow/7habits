@@ -1,0 +1,23 @@
+{
+  "name": "7habits",
+  "version": "0.0.0",
+  "private": true,
+  "description": "7 Habits Mentor Agent — layered, browser-validatable foundation",
+  "type": "module",
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "dev": "pnpm --filter @7habits/web dev",
+    "build": "pnpm -r --filter @7habits/core --filter @7habits/web build",
+    "test": "pnpm --filter @7habits/core test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "typescript": "5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+  }
+}
