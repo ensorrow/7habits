@@ -1,4 +1,5 @@
 import {
+  accessToken,
   accessTokenFromEnv,
   qodercliAuth,
   query,
@@ -21,7 +22,13 @@ export interface MentorAgentStatus {
   reason?: string;
 }
 
-function resolveAuth(): { auth: AuthOptions; mode: MentorAgentStatus['authMode'] } | null {
+function resolveAuth(
+  accessTokenOverride?: string,
+): { auth: AuthOptions; mode: MentorAgentStatus['authMode'] } | null {
+  const fromUi = accessTokenOverride?.trim();
+  if (fromUi) {
+    return { auth: accessToken(fromUi), mode: 'accessToken' };
+  }
   if (process.env.QODER_PERSONAL_ACCESS_TOKEN?.trim()) {
     return { auth: accessTokenFromEnv(), mode: 'accessToken' };
   }
@@ -32,14 +39,14 @@ function resolveAuth(): { auth: AuthOptions; mode: MentorAgentStatus['authMode']
   return null;
 }
 
-export function getMentorAgentStatus(): MentorAgentStatus {
-  const resolved = resolveAuth();
+export function getMentorAgentStatus(accessTokenOverride?: string): MentorAgentStatus {
+  const resolved = resolveAuth(accessTokenOverride);
   if (!resolved) {
     return {
       available: false,
       authMode: 'none',
       reason:
-        '未配置认证。设置 QODER_PERSONAL_ACCESS_TOKEN，或本地已 qodercli login 后设 QODER_USE_CLI_AUTH=1。',
+        '未配置认证。在设置里填写 Qoder PAT，或设置环境变量 QODER_PERSONAL_ACCESS_TOKEN。',
     };
   }
   return { available: true, authMode: resolved.mode };
@@ -80,8 +87,9 @@ export async function phraseWithQoderAgent(
   ctx: MentorContext,
   structural: MentorReply,
   userText?: string,
+  accessTokenOverride?: string,
 ): Promise<{ content: string; messages: SDKMessage[] }> {
-  const resolved = resolveAuth();
+  const resolved = resolveAuth(accessTokenOverride);
   if (!resolved) {
     throw new Error('Qoder auth not configured');
   }

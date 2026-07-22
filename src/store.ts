@@ -69,6 +69,7 @@ interface AppStore {
   setVolume: (v: AppSettings['volume']) => void;
   setCalendarAuth: (ok: boolean) => void;
   setMentorEngine: (engine: AppSettings['mentorEngine']) => void;
+  setQoderPat: (pat: string) => void;
   refreshAgentStatus: () => Promise<void>;
   bootstrap: () => void;
   sendUserMessage: (text: string) => Promise<void>;
@@ -213,7 +214,12 @@ async function runMentorTurn(
   set({ mentorBusy: true, lastMentorError: undefined });
   try {
     const useAgent = get().settings.mentorEngine !== 'local';
-    const result = await requestMentorTurn(buildCtx(get()), userText, useAgent);
+    const result = await requestMentorTurn(
+      buildCtx(get()),
+      userText,
+      useAgent,
+      get().settings.qoderPat,
+    );
     applyReply(get, set, result.reply, answerKey, userText);
     set({
       lastMentorSource: result.source,
@@ -262,6 +268,7 @@ export const useAppStore = create<AppStore>()(
         weeklyReviewDay: 0,
         weeklyReviewHour: 20,
         mentorEngine: 'auto',
+        qoderPat: '',
       },
       mentorPhase: 'cold-start',
       coldStartStep: 'intro',
@@ -304,8 +311,10 @@ export const useAppStore = create<AppStore>()(
         }),
       setMentorEngine: (mentorEngine) =>
         set({ settings: { ...get().settings, mentorEngine } }),
+      setQoderPat: (qoderPat) =>
+        set({ settings: { ...get().settings, qoderPat } }),
       refreshAgentStatus: async () => {
-        const status = await fetchMentorStatus();
+        const status = await fetchMentorStatus(get().settings.qoderPat);
         set({ agentStatus: status });
       },
 
@@ -543,6 +552,7 @@ export const useAppStore = create<AppStore>()(
             weeklyReviewDay: 0,
             weeklyReviewHour: 20,
             mentorEngine: get().settings.mentorEngine,
+            qoderPat: get().settings.qoderPat,
           },
           mentorPhase: 'cold-start',
           coldStartStep: 'intro',
@@ -601,6 +611,7 @@ export const useAppStore = create<AppStore>()(
           ...current.settings,
           ...(p?.settings ?? {}),
           mentorEngine: p?.settings?.mentorEngine ?? current.settings.mentorEngine,
+          qoderPat: p?.settings?.qoderPat ?? current.settings.qoderPat,
         };
         return {
           ...current,

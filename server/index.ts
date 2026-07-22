@@ -13,6 +13,12 @@ export interface MentorTurnRequest {
   userText?: string;
   /** Prefer Qoder agent phrasing when auth is available. Default true. */
   useAgent?: boolean;
+  /** Optional PAT from Settings UI (overrides env for this request). */
+  accessToken?: string;
+}
+
+export interface MentorStatusRequest {
+  accessToken?: string;
 }
 
 export interface MentorTurnResponse {
@@ -41,6 +47,23 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.end(payload);
 }
 
+async function handleStatus(req: IncomingMessage, res: ServerResponse) {
+  let accessToken: string | undefined;
+  if (req.method === 'POST') {
+    const raw = await readBody(req);
+    if (raw.trim()) {
+      try {
+        const body = JSON.parse(raw) as MentorStatusRequest;
+        accessToken = body.accessToken;
+      } catch {
+        sendJson(res, 400, { error: 'Invalid JSON body' });
+        return;
+      }
+    }
+  }
+  sendJson(res, 200, getMentorAgentStatus(accessToken));
+}
+
 async function handleTurn(req: IncomingMessage, res: ServerResponse) {
   const raw = await readBody(req);
   let body: MentorTurnRequest;
@@ -58,7 +81,7 @@ async function handleTurn(req: IncomingMessage, res: ServerResponse) {
 
   const structural = respond(body.context, body.userText);
   const wantAgent = body.useAgent !== false;
-  const status = getMentorAgentStatus();
+  const status = getMentorAgentStatus(body.accessToken);
 
   if (!wantAgent || !status.available) {
     const response: MentorTurnResponse = {
@@ -71,7 +94,12 @@ async function handleTurn(req: IncomingMessage, res: ServerResponse) {
   }
 
   try {
-    const phrased = await phraseWithQoderAgent(body.context, structural, body.userText);
+    const phrased = await phraseWithQoderAgent(
+      body.context,
+      structural,
+      body.userText,
+      body.accessToken,
+    );
     const response: MentorTurnResponse = {
       reply: { ...structural, content: phrased.content },
       source: 'qoder',
@@ -96,8 +124,16 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && url.pathname === '/api/mentor/status') {
-    sendJson(res, 200, getMentorAgentStatus());
+  if (
+    (req.method === 'GET' || req.method === 'POST') &&
+    url.pathname === '/api/mentor/status'
+  ) {
+    try {
+      await handleStatus(req, res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error: message });
+    }
     return;
   }
 

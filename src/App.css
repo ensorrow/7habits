@@ -491,6 +491,39 @@
   line-height: 1.45;
 }
 
+.hint a {
+  color: var(--brass-bright);
+}
+
+.pat-label {
+  margin-top: 1rem;
+}
+
+.pat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+
+.pat-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mist);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.pat-input:focus {
+  outline: 1px solid var(--brass);
+  border-color: var(--brass);
+}
+
 .empty-dashboard {
   padding: 2rem 1.25rem;
   color: var(--mist-dim);

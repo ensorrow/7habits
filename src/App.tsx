@@ -350,6 +350,8 @@ function SettingsPanel() {
   const setVolume = useAppStore((s) => s.setVolume);
   const mentorEngine = useAppStore((s) => s.settings.mentorEngine);
   const setMentorEngine = useAppStore((s) => s.setMentorEngine);
+  const qoderPat = useAppStore((s) => s.settings.qoderPat);
+  const setQoderPat = useAppStore((s) => s.setQoderPat);
   const agentStatus = useAppStore((s) => s.agentStatus);
   const refreshAgentStatus = useAppStore((s) => s.refreshAgentStatus);
   const lastError = useAppStore((s) => s.lastMentorError);
@@ -358,6 +360,11 @@ function SettingsPanel() {
   const reset = useAppStore((s) => s.resetAll);
   const demo = useAppStore((s) => s.triggerDemoIntervention);
   const scan = useAppStore((s) => s.scanInterventions);
+  const [patDraft, setPatDraft] = useState(qoderPat);
+
+  useEffect(() => {
+    setPatDraft(qoderPat);
+  }, [qoderPat]);
 
   useEffect(() => {
     void refreshAgentStatus();
@@ -414,6 +421,55 @@ function SettingsPanel() {
               <small>规则模板</small>
             </button>
           </div>
+
+          <label className="pat-label" htmlFor="qoder-pat">
+            Qoder Personal Access Token
+          </label>
+          <p className="hint">
+            在{' '}
+            <a
+              href="https://qoder.com/account/integrations"
+              target="_blank"
+              rel="noreferrer"
+            >
+              qoder.com/account/integrations
+            </a>{' '}
+            生成 PAT。保存在本机浏览器 localStorage，仅用于本地原型。
+          </p>
+          <div className="pat-row">
+            <input
+              id="qoder-pat"
+              className="pat-input"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="粘贴 Qoder PAT…"
+              value={patDraft}
+              onChange={(e) => setPatDraft(e.target.value)}
+            />
+            <button
+              className="btn-ghost"
+              onClick={() => {
+                setQoderPat(patDraft.trim());
+                void refreshAgentStatus();
+              }}
+            >
+              保存并检测
+            </button>
+            {qoderPat && (
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  setPatDraft('');
+                  setQoderPat('');
+                  void refreshAgentStatus();
+                }}
+              >
+                清除
+              </button>
+            )}
+          </div>
+
           <p className="hint" style={{ marginTop: '0.6rem' }}>
             状态：
             {agentStatus?.available

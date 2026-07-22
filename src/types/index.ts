@@ -137,6 +137,8 @@ export interface AppSettings {
   weeklyReviewHour: number;
   /** auto = Qoder agent when server/auth available, else local rules */
   mentorEngine: MentorEngine;
+  /** Qoder Personal Access Token from Settings (browser localStorage). */
+  qoderPat: string;
 }
 
 export interface MentorState {

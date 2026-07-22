@@ -16,16 +16,20 @@ export interface MentorTurnResponse {
 
 const API_BASE = import.meta.env.VITE_MENTOR_API_BASE ?? '';
 
-export async function fetchMentorStatus(): Promise<MentorAgentStatus> {
+export async function fetchMentorStatus(accessToken?: string): Promise<MentorAgentStatus> {
   try {
-    const res = await fetch(`${API_BASE}/api/mentor/status`);
+    const res = await fetch(`${API_BASE}/api/mentor/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: accessToken?.trim() || undefined }),
+    });
     if (!res.ok) throw new Error(`status ${res.status}`);
     return (await res.json()) as MentorAgentStatus;
   } catch {
     return {
       available: false,
       authMode: 'none',
-      reason: '导师 Agent 服务未启动（npm run agent）。将使用本地规则引擎。',
+      reason: '导师 Agent 服务未启动（npm run agent / npm run dev:all）。将使用本地规则引擎。',
     };
   }
 }
@@ -34,12 +38,18 @@ export async function requestMentorTurn(
   context: MentorContext,
   userText?: string,
   useAgent = true,
+  accessToken?: string,
 ): Promise<MentorTurnResponse> {
   try {
     const res = await fetch(`${API_BASE}/api/mentor/turn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ context, userText, useAgent }),
+      body: JSON.stringify({
+        context,
+        userText,
+        useAgent,
+        accessToken: accessToken?.trim() || undefined,
+      }),
     });
     if (!res.ok) throw new Error(`turn ${res.status}`);
     return (await res.json()) as MentorTurnResponse;
