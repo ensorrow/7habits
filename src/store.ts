@@ -21,11 +21,18 @@ import type {
 } from './types';
 import {
   analyzeCalendar,
+  computeRoleStarveWeeks,
   computeWeeklyStats,
   generateMockCalendar,
   generateMockTodos,
 } from './services/calendar';
-import { createAccount, deposit, withdraw } from './services/emotionalAccount';
+import {
+  createAccount,
+  deposit,
+  registerEngage,
+  registerIgnore,
+  withdraw,
+} from './services/emotionalAccount';
 import { mergeLanguageStats } from './services/language';
 import { respond, type MentorContext } from './services/mentor';
 import {
@@ -64,6 +71,12 @@ interface AppStore {
   weeklyStats: WeeklyStats | null;
   userAnswers: MentorContext['userAnswers'];
   languageStats: WeeklyStats['language'];
+  missedWeeklyReviews: number;
+  priorQ1Ratio?: number;
+  consecutiveIgnores: number;
+  pendingMissionProposal?: string;
+  lastJournalDraft?: string;
+  lastWeeklyReviewAt?: string;
 
   setView: (view: AppView) => void;
   setVolume: (v: AppSettings['volume']) => void;
@@ -75,11 +88,14 @@ interface AppStore {
   sendUserMessage: (text: string) => Promise<void>;
   advanceMentor: () => Promise<void>;
   startWeeklyReview: () => void;
+  skipWeeklyReview: () => void;
   acknowledgeIntervention: () => void;
   dismissIntervention: () => void;
   scanInterventions: () => void;
   triggerDemoIntervention: () => void;
   confirmRoles: () => void;
+  confirmMissionProposal: () => void;
+  confirmJournal: () => void;
   updateRole: (id: string, patch: Partial<Role>) => void;
   addBigRock: (rock: Omit<BigRock, 'id' | 'status'>) => void;
   resetAll: () => Promise<void>;
@@ -100,6 +116,7 @@ function msg(
 }
 
 function buildCtx(s: AppStore): MentorContext {
+  const roleIds = s.roles.map((r) => r.id);
   return {
     messages: s.messages,
     coldStartStep: s.coldStartStep,
@@ -107,6 +124,7 @@ function buildCtx(s: AppStore): MentorContext {
     phase: s.mentorPhase,
     roles: s.roles,
     events: s.events,
+    todos: s.todos,
     emotionalAccount: s.emotionalAccount,
     weekCount: s.weekCount,
     volume: s.settings.volume,
@@ -114,6 +132,14 @@ function buildCtx(s: AppStore): MentorContext {
     pendingPromise: s.promises.find((p) => !p.asked),
     calendarAuthorized: s.settings.calendarAuthorized,
     userAnswers: s.userAnswers,
+    missedWeeklyReviews: s.missedWeeklyReviews,
+    priorQ1Ratio: s.priorQ1Ratio,
+    roleStarveWeeks:
+      roleIds.length > 0
+        ? computeRoleStarveWeeks(s.events, roleIds)
+        : undefined,
+    languageStats: s.languageStats,
+    pendingMissionProposal: s.pendingMissionProposal,
   };
 }
 
@@ -128,12 +154,32 @@ function applyReply(
   let account = state.emotionalAccount;
   if (reply.deposit) account = deposit(account, reply.deposit, 'mentor');
   if (reply.withdraw) account = withdraw(account, reply.withdraw);
+  if (reply.enterSilence) account = { ...account, silenceMode: true };
+  if (reply.clearSilence) account = { ...account, silenceMode: false };
 
   const answers = { ...state.userAnswers };
   if (answerKey && userText) answers[answerKey] = userText;
 
   const clues = [...state.mission.clues];
   if (reply.extractClue) clues.push(reply.extractClue);
+
+  let statements = [...state.mission.statements];
+  let pendingMissionProposal = state.pendingMissionProposal;
+  if (reply.proposeMission) {
+    pendingMissionProposal = reply.proposeMission;
+  }
+  // Accept mission when reply confirms after user said 确认
+  if (
+    state.pendingMissionProposal &&
+    userText &&
+    /确认|好的|可以|写入|同意|记下/.test(userText) &&
+    reply.content.includes('使命草稿')
+  ) {
+    if (!statements.includes(state.pendingMissionProposal)) {
+      statements = [...statements, state.pendingMissionProposal];
+    }
+    pendingMissionProposal = undefined;
+  }
 
   let roles = state.roles;
   if (reply.suggestRoles) {
@@ -175,6 +221,33 @@ function applyReply(
     }
   }
 
+  if (reply.markPromiseAsked) {
+    const pending = promises.find((p) => !p.asked);
+    if (pending) {
+      promises = promises.map((p) =>
+        p.id === pending.id
+          ? {
+              ...p,
+              asked: true,
+              fulfilled:
+                reply.markPromiseFulfilled === undefined
+                  ? p.fulfilled
+                  : reply.markPromiseFulfilled,
+            }
+          : p,
+      );
+    }
+  }
+
+  let missedWeeklyReviews = state.missedWeeklyReviews;
+  let priorQ1Ratio = state.priorQ1Ratio;
+  let lastWeeklyReviewAt = state.lastWeeklyReviewAt;
+  if (reply.nextWeeklyAct === 'done') {
+    missedWeeklyReviews = 0;
+    lastWeeklyReviewAt = formatISO(new Date());
+    if (state.weeklyStats) priorQ1Ratio = state.weeklyStats.q1Ratio;
+  }
+
   const newMessages = [
     ...state.messages,
     msg('mentor', reply.content, reply.sources),
@@ -190,8 +263,14 @@ function applyReply(
     mission: {
       ...state.mission,
       clues,
+      statements,
       updatedAt: formatISO(new Date()),
     },
+    pendingMissionProposal,
+    lastJournalDraft: reply.journalDraft ?? state.lastJournalDraft,
+    missedWeeklyReviews,
+    priorQ1Ratio,
+    lastWeeklyReviewAt,
     coldStartStep: reply.nextColdStartStep ?? state.coldStartStep,
     weeklyReviewAct: reply.nextWeeklyAct ?? state.weeklyReviewAct,
     mentorPhase: reply.phase ?? state.mentorPhase,
@@ -297,6 +376,8 @@ export const useAppStore = create<AppStore>()(
         reactivePhrases: [],
         proactivePhrases: [],
       },
+      missedWeeklyReviews: 0,
+      consecutiveIgnores: 0,
 
       setView: (view) => set({ view }),
       setVolume: (volume) =>
@@ -358,10 +439,13 @@ export const useAppStore = create<AppStore>()(
 
         const s = get();
         const languageStats = mergeLanguageStats(s.languageStats, trimmed);
+        const engaged = registerEngage(s.emotionalAccount, s.consecutiveIgnores);
 
         set({
           messages: [...s.messages, msg('user', trimmed)],
           languageStats,
+          emotionalAccount: engaged.account,
+          consecutiveIgnores: engaged.consecutiveIgnores,
         });
 
         let answerKey: keyof MentorContext['userAnswers'] | undefined;
@@ -403,9 +487,21 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
+      skipWeeklyReview: () => {
+        const s = get();
+        set({
+          missedWeeklyReviews: s.missedWeeklyReviews + 1,
+          messages: [
+            ...s.messages,
+            msg('system', '本周跳过周回顾。账不会消失——下次开场会先补。'),
+          ],
+        });
+      },
+
       acknowledgeIntervention: () => {
         const s = get();
         if (!s.pendingIntervention) return;
+        const engaged = registerEngage(s.emotionalAccount, s.consecutiveIgnores);
         set({
           pendingIntervention: {
             ...s.pendingIntervention,
@@ -414,10 +510,11 @@ export const useAppStore = create<AppStore>()(
           menubarBadge: false,
           messages: [
             ...s.messages,
-            msg('system', `导师开口（${s.pendingIntervention.priority}）`),
+            msg('system', `导师开口（${s.pendingIntervention.priority} · ${s.pendingIntervention.channel}）`),
             msg('mentor', s.pendingIntervention.message),
           ],
-          emotionalAccount: deposit(s.emotionalAccount, 2, 'intervention-ack'),
+          emotionalAccount: deposit(engaged.account, 2, 'intervention-ack'),
+          consecutiveIgnores: 0,
           view: 'chat',
         });
       },
@@ -425,11 +522,7 @@ export const useAppStore = create<AppStore>()(
       dismissIntervention: () => {
         const s = get();
         if (!s.pendingIntervention) return;
-        const account = withdraw(s.emotionalAccount, 3);
-        const silence =
-          account.withdrawals >= 2 && account.balance < 30
-            ? { ...account, silenceMode: true }
-            : account;
+        const ignored = registerIgnore(s.emotionalAccount, s.consecutiveIgnores);
         set({
           pendingIntervention: {
             ...s.pendingIntervention,
@@ -437,7 +530,8 @@ export const useAppStore = create<AppStore>()(
             acknowledged: true,
           },
           menubarBadge: false,
-          emotionalAccount: silence,
+          emotionalAccount: ignored.account,
+          consecutiveIgnores: ignored.consecutiveIgnores,
         });
       },
 
@@ -446,23 +540,31 @@ export const useAppStore = create<AppStore>()(
         if (s.pendingIntervention && !s.pendingIntervention.acknowledged) return;
         if (s.mentorPhase === 'cold-start') return;
 
+        const roleIds = s.roles.map((r) => r.id);
         const hit = evaluateInterventions({
           events: s.events,
           rocks: s.rocks,
           roles: s.roles,
           promises: s.promises,
+          todos: s.todos,
           emotionalAccount: s.emotionalAccount,
           volume: s.settings.volume,
           weekCount: s.weekCount,
           interventionsThisWeek: s.interventionsThisWeek,
           silenceMode: s.emotionalAccount.silenceMode,
           lastInterventionAt: s.lastInterventionAt,
+          priorQ1Ratio: s.priorQ1Ratio,
+          languageStats: s.languageStats,
+          roleStarveWeeks:
+            roleIds.length > 0
+              ? computeRoleStarveWeeks(s.events, roleIds)
+              : undefined,
         });
 
         if (hit) {
           set({
             pendingIntervention: hit,
-            menubarBadge: true,
+            menubarBadge: hit.channel !== 'notification',
             interventionsThisWeek: s.interventionsThisWeek + 1,
             lastInterventionAt: hit.triggeredAt,
           });
@@ -474,12 +576,12 @@ export const useAppStore = create<AppStore>()(
         const roleId = s.roles[0]?.id ?? 'engineer';
         const rock = demoSwallowedRock(roleId);
         set({ rocks: [...s.rocks.filter((r) => r.id !== rock.id), rock] });
-        // Force P0
         const hit = evaluateInterventions({
           events: s.events,
           rocks: [...s.rocks.filter((r) => r.id !== rock.id), rock],
           roles: s.roles,
           promises: s.promises,
+          todos: s.todos,
           emotionalAccount: s.emotionalAccount,
           volume: s.settings.volume,
           weekCount: Math.max(s.weekCount, 1),
@@ -508,6 +610,40 @@ export const useAppStore = create<AppStore>()(
                 : ['在重要的角色上持续投入，而不是只在紧急的事上反应。'],
             updatedAt: formatISO(new Date()),
           },
+        });
+      },
+
+      confirmMissionProposal: () => {
+        const s = get();
+        if (!s.pendingMissionProposal) return;
+        const statements = s.mission.statements.includes(s.pendingMissionProposal)
+          ? s.mission.statements
+          : [...s.mission.statements, s.pendingMissionProposal];
+        set({
+          mission: {
+            ...s.mission,
+            statements,
+            updatedAt: formatISO(new Date()),
+          },
+          pendingMissionProposal: undefined,
+          messages: [
+            ...s.messages,
+            msg('system', `使命草稿已更新：「${s.pendingMissionProposal}」`),
+          ],
+          emotionalAccount: deposit(s.emotionalAccount, 3, 'mission-confirm'),
+        });
+      },
+
+      confirmJournal: () => {
+        const s = get();
+        if (!s.lastJournalDraft) return;
+        set({
+          messages: [
+            ...s.messages,
+            msg('system', `周记已确认：${s.lastJournalDraft}`),
+          ],
+          emotionalAccount: deposit(s.emotionalAccount, 2, 'journal-confirm'),
+          lastJournalDraft: undefined,
         });
       },
 
@@ -581,6 +717,12 @@ export const useAppStore = create<AppStore>()(
             reactivePhrases: [],
             proactivePhrases: [],
           },
+          missedWeeklyReviews: 0,
+          priorQ1Ratio: undefined,
+          consecutiveIgnores: 0,
+          pendingMissionProposal: undefined,
+          lastJournalDraft: undefined,
+          lastWeeklyReviewAt: undefined,
         });
         await runMentorTurn(get, set);
       },
@@ -604,6 +746,12 @@ export const useAppStore = create<AppStore>()(
         messages: s.messages,
         userAnswers: s.userAnswers,
         languageStats: s.languageStats,
+        missedWeeklyReviews: s.missedWeeklyReviews,
+        priorQ1Ratio: s.priorQ1Ratio,
+        consecutiveIgnores: s.consecutiveIgnores,
+        pendingMissionProposal: s.pendingMissionProposal,
+        lastJournalDraft: s.lastJournalDraft,
+        lastWeeklyReviewAt: s.lastWeeklyReviewAt,
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<AppStore> | undefined;

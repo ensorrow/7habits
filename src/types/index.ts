@@ -71,6 +71,8 @@ export interface TodoItem {
   deferredCount: number;
   roleId?: string;
   completed: boolean;
+  /** Promise made to someone else (vs self-care / internal task) */
+  commitmentToOthers?: boolean;
 }
 
 export interface BigRock {

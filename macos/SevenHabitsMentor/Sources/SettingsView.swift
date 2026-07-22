@@ -59,8 +59,19 @@ struct SettingsView: View {
       }
 
       Section("演示") {
-        Button("菜单栏：导师有话说") {
+        Button("菜单栏：导师有话说（P0）") {
           model.raiseMenubarAttention("周日你说这是本周最重要的事，现在它没了。挪去哪？")
+        }
+        Button("扫描干预条件") {
+          Task { await model.scanInterventions() }
+        }
+        Button("模拟跳过周回顾") {
+          model.skipWeeklyReview()
+        }
+        if model.missedWeeklyReviews > 0 {
+          Text("已跳过周回顾 \(model.missedWeeklyReviews) 次（账不会消失）")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
       }
     }

@@ -164,6 +164,7 @@ export function habitFocusForTurn(input: {
     | 'pushback'
     | 'silence'
     | 'enter-weekly'
+    | 'promise-followup'
     | 'generic';
 }): HabitId[] {
   const { phase, coldStartStep, weeklyReviewAct, dailyKind } = input;
@@ -214,6 +215,7 @@ export function habitFocusForTurn(input: {
       return [2];
     case 'big-rocks':
     case 'enter-weekly':
+    case 'promise-followup':
       return [3];
     case 'firefighting':
       return [3, 1];

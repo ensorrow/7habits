@@ -1,4 +1,8 @@
-import { analyzeCalendar } from './calendar';
+import {
+  analyzeCalendar,
+  chronicallyDeferredTodos,
+  upcomingCommitmentsToOthers,
+} from './calendar';
 import { analyzeLanguage } from './language';
 import { challengeMode } from './emotionalAccount';
 import { habitFocusForTurn, type HabitId } from './habits';
@@ -7,7 +11,9 @@ import type {
   ChatMessage,
   ColdStartStep,
   EmotionalAccount,
+  LanguageStats,
   Role,
+  TodoItem,
   VolumeSetting,
   WeeklyPromise,
   WeeklyReviewAct,
@@ -21,6 +27,7 @@ export interface MentorContext {
   phase: 'cold-start' | 'daily' | 'weekly-review';
   roles: Role[];
   events: CalendarEvent[];
+  todos?: TodoItem[];
   emotionalAccount: EmotionalAccount;
   weekCount: number;
   volume: VolumeSetting;
@@ -36,6 +43,15 @@ export interface MentorContext {
     confrontationReply?: string;
     hungryRolePlan?: string;
   };
+  /** Skipped weekly-review count — debt that doesn't disappear */
+  missedWeeklyReviews?: number;
+  /** Prior week Q1 ratio for trend talk */
+  priorQ1Ratio?: number;
+  /** Consecutive weeks starved per role */
+  roleStarveWeeks?: Record<string, number>;
+  languageStats?: LanguageStats;
+  /** Statement waiting for user confirm */
+  pendingMissionProposal?: string;
 }
 
 export interface MentorReply {
@@ -51,6 +67,18 @@ export interface MentorReply {
   extractClue?: string;
   /** Which habit mechanisms this turn exercises (product map, not slogans) */
   habitFocus?: HabitId[];
+  /** Propose a mission statement for user confirm */
+  proposeMission?: string;
+  /** Mark pending weekly promise as asked */
+  markPromiseAsked?: boolean;
+  /** Mark pending weekly promise fulfilled */
+  markPromiseFulfilled?: boolean;
+  /** Enter silence circuit breaker */
+  enterSilence?: boolean;
+  /** Clear silence mode */
+  clearSilence?: boolean;
+  /** Mentor-drafted weekly journal for user confirm */
+  journalDraft?: string;
 }
 
 function withHabitFocus(
@@ -261,14 +289,36 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
         })
         .join('，');
 
-      const hungry = roles.find((r) => (stats.roleHours[r.id] ?? 0) < 0.5);
-      const hungryLine = hungry
-        ? `「${hungry.name}」连续多周接近零投入。`
+      const starve = ctx.roleStarveWeeks ?? {};
+      const hungry = [...roles].sort(
+        (a, b) => (starve[b.id] ?? 0) - (starve[a.id] ?? 0),
+      )[0];
+      const weeks = hungry ? starve[hungry.id] ?? 0 : 0;
+      const hungryLine =
+        hungry && (stats.roleHours[hungry.id] ?? 0) < 0.5
+          ? weeks >= 2
+            ? `「${hungry.name}」连续第 ${weeks} 周接近零投入。`
+            : `「${hungry.name}」这周几乎看不见。`
+          : '';
+
+      const badWeek =
+        stats.landedRocks <= 1 ||
+        (stats.plannedRocks > 0 && stats.landedRocks / stats.plannedRocks < 0.4) ||
+        stats.q1Ratio >= 60;
+
+      const badLine = badWeek
+        ? `\n\n这周兑现率很低（大石头 ${stats.landedRocks}/${stats.plannedRocks}，救火占比约 ${stats.q1Ratio}%）。我不批评——等会儿我想问：是什么在不断产生紧急事务？`
         : '';
 
+      const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
+      const deferLine =
+        deferred.length > 0
+          ? `\n待办里「${deferred[0].title}」已推迟 ${deferred[0].deferredCount} 次——往往是第二象限在排队。`
+          : '';
+
       return tag({
-        content: `我看你日历上，这周时间大概是这样：${parts}。计划的 ${stats.plannedRocks} 块大石头落地 ${stats.landedRocks} 块。${hungryLine}\n\n这周哪件事你最不后悔？`,
-        sources: ['系统日历 · 本周', '大石头计划'],
+        content: `我看你日历上，这周时间大概是这样：${parts}。计划的 ${stats.plannedRocks} 块大石头落地 ${stats.landedRocks} 块。${hungryLine}${badLine}${deferLine}\n\n这周哪件事你最不后悔？`,
+        sources: ['系统日历 · 本周', '大石头计划', ...(deferred.length ? ['待办/提醒'] : [])],
         nextWeeklyAct: 'no-regret',
         deposit: 4,
       });
@@ -298,6 +348,19 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
         return tag({
           content: buildConfrontation(ctx, mode),
           nextWeeklyAct: 'confrontation',
+        });
+      }
+      const statsBad =
+        stats &&
+        (stats.q1Ratio >= 60 ||
+          (stats.plannedRocks > 0 && stats.landedRocks / stats.plannedRocks < 0.4));
+      if (statsBad && !/根因|紧急|救火/.test(userText)) {
+        return tag({
+          content:
+            '记下了。这周很糟的时候，对质不如找根因——是什么在不断产生紧急事务？会议？别人的期待？还是你默认接住所有球？',
+          nextWeeklyAct: 'confrontation',
+          deposit: 2,
+          extractClue: userText,
         });
       }
       const hungry = findMostHungry(ctx);
@@ -357,16 +420,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
           nextWeeklyAct: 'schedule',
         });
       }
-      return tag(
-        {
-          content: buildClosing(ctx, userText),
-          nextWeeklyAct: 'done',
-          phase: 'daily',
-          deposit: 6,
-          scheduleReview: true,
-        },
-        'closing',
-      );
+      return tag(buildClosing(ctx, userText), 'closing');
 
     default:
       return tag({
@@ -377,7 +431,13 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
 }
 
 function findMostHungry(ctx: MentorContext): Role | undefined {
+  const starve = ctx.roleStarveWeeks ?? {};
   const stats = ctx.weeklyStats;
+  if (Object.keys(starve).length > 0) {
+    return [...ctx.roles].sort(
+      (a, b) => (starve[b.id] ?? 0) - (starve[a.id] ?? 0),
+    )[0];
+  }
   if (!stats) {
     return ctx.roles.find((r) => r.name.includes('健康') || r.name.includes('父亲'));
   }
@@ -392,20 +452,63 @@ function buildConfrontation(
 ): string {
   const hungry = findMostHungry(ctx);
   const name = hungry?.name ?? '那个你口头重视的角色';
+  const weeks = hungry ? ctx.roleStarveWeeks?.[hungry.id] ?? 0 : 0;
+  const weekLabel = weeks >= 2 ? `过去 ${weeks} 周` : '这周';
+
+  const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
+  const deferHint =
+    deferred[0] && deferred[0].roleId === hungry?.id
+      ? `待办里「${deferred[0].title}」也被推迟了 ${deferred[0].deferredCount} 次。`
+      : '';
 
   if (mode === 'coach') {
-    return `你说最不后悔的事，我听到了。我还在观察——先问一句：${name}，在你这周的日历里几乎看不见。你怎么看这件事？`;
+    return `你说最不后悔的事，我听到了。我还在观察——先问一句：${name}，在你${weekLabel}的日历里几乎看不见。${deferHint}你怎么看这件事？`;
   }
   if (mode === 'ask') {
-    return `你说它重要，但日历上「${name}」这周的投入接近零。这是例外，还是已经成了模式？`;
+    return `你说它重要，但日历上「${name}」${weekLabel}的投入接近零。${deferHint}这是例外，还是已经成了模式？`;
   }
-  return `你说「${name}」重要，但我看你日历上过去两周在这上面的投入为零。我认为你在用忙碌躲开这件事。我只挑这一处——你怎么回应？`;
+  return `你说「${name}」重要，但我看你日历上${weekLabel}在这上面的投入为零。${deferHint}我认为你在用忙碌躲开这件事。我只挑这一处——你怎么回应？`;
 }
 
-function buildClosing(ctx: MentorContext, userText?: string): string {
+function suggestMissionFromClues(ctx: MentorContext): string | undefined {
+  if (ctx.pendingMissionProposal) return undefined;
+  const clues = [
+    ...(ctx.userAnswers.noRegret ? [ctx.userAnswers.noRegret] : []),
+    ...(ctx.userAnswers.q1 ? [ctx.userAnswers.q1] : []),
+    ...(ctx.userAnswers.q2 ? [ctx.userAnswers.q2] : []),
+    ...(ctx.userAnswers.hungryRolePlan ? [ctx.userAnswers.hungryRolePlan] : []),
+  ].join(' ');
+  if (/家|孩子|父亲|陪/.test(clues)) {
+    return '家庭优先——在重要关系上持续投入，而不是只在紧急的事上反应';
+  }
+  if (/健康|跑|身体|锻炼/.test(clues)) {
+    return '产能先于产出——身体与心力是其他角色的根基';
+  }
+  if (clues.length > 8) {
+    return '在重要的角色上持续投入，而不是只在紧急的事上反应';
+  }
+  return undefined;
+}
+
+function buildClosing(ctx: MentorContext, userText?: string): MentorReply {
   const rock = userText?.trim() || '那件你刚说的事';
   const hungry = findMostHungry(ctx);
-  return `记下了：${rock}。我会写进日历。\n\n下周之约——我会问你「${hungry?.name ?? '那块大石头'}」的进展。说到做到。\n\n两三行周记我先代笔，你回头确认就行：这周工作偏重，重要的关系与自我被挤到边缘；你开始正视落差，并给下周放进了第一块石头。`;
+  const mission = suggestMissionFromClues(ctx);
+  const missionLine = mission
+    ? `\n\n使命草稿——最近几次你都把时间往「${hungry?.name ?? '重要关系'}」推。要不要把这句话写进去：「${mission}」？回「确认」我就记下。`
+    : '';
+
+  const journal = `这周工作偏重，重要的关系与自我被挤到边缘；你开始正视落差，并给下周放进了第一块石头。`;
+
+  return {
+    content: `记下了：${rock}。我会写进日历。\n\n下周之约——我会问你「${hungry?.name ?? '那块大石头'}」的进展。说到做到。\n\n两三行周记我先代笔，你回头确认就行：${journal}${missionLine}`,
+    nextWeeklyAct: 'done',
+    phase: 'daily',
+    deposit: 6,
+    scheduleReview: true,
+    proposeMission: mission,
+    journalDraft: journal,
+  };
 }
 
 export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
@@ -420,6 +523,77 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
       reply,
       habitFocusForTurn({ phase: 'daily', dailyKind }),
     );
+
+  // Accept pending mission proposal
+  if (ctx.pendingMissionProposal && /确认|好的|可以|写入|同意|记下/.test(lower)) {
+    return tag(
+      {
+        content: `好。「${ctx.pendingMissionProposal}」进使命草稿了。活文档，随时可改。`,
+        deposit: 4,
+        clearSilence: true,
+      },
+      'mission-roles',
+    );
+  }
+
+  // Fulfill / ask pending weekly promise (下周之约兑现)
+  if (ctx.pendingPromise && !ctx.pendingPromise.asked) {
+    if (
+      /进展|做到了|完成了|兑现|没做成|还没|忘了|延期|上周之约/.test(lower) ||
+      (ctx.pendingPromise.text.length >= 2 &&
+        lower.includes(ctx.pendingPromise.text.slice(0, 2)))
+    ) {
+      const ok = /做到|完成|兑现|有进展|去了|跑了|陪了/.test(lower);
+      return tag(
+        {
+          content: ok
+            ? `上周之约「${ctx.pendingPromise.text}」——你兑现了。这是情感账户上的一笔存款，我记住了。`
+            : `上周之约「${ctx.pendingPromise.text}」还没落地。账不会消失——这周你打算补在哪一天？`,
+          deposit: ok ? 5 : 1,
+          withdraw: ok ? 0 : 1,
+          markPromiseAsked: true,
+          markPromiseFulfilled: ok,
+          sources: ['上周之约'],
+        },
+        'promise-followup',
+      );
+    }
+    // Only auto-open the promise on an explicit check-in greeting
+    if (/^(在吗|你好|嗨|来了|聊聊|有空|导师)/.test(lower)) {
+      return tag(
+        {
+          content: `先兑现上周之约——我说过会问你「${ctx.pendingPromise.text}」。进展如何？`,
+          markPromiseAsked: true,
+          sources: ['上周之约'],
+          deposit: 2,
+        },
+        'promise-followup',
+      );
+    }
+  }
+
+  // Skipped weekly-review debt
+  if ((ctx.missedWeeklyReviews ?? 0) >= 1 && /周回顾|开始回顾|聊聊这周|来了/.test(lower)) {
+    return tag(
+      {
+        content: `我们有 ${ctx.missedWeeklyReviews} 次周回顾没做，先补上次的账——账不会消失。我已经把观察准备好了。`,
+        phase: 'weekly-review',
+        nextWeeklyAct: 'observation',
+        deposit: 2,
+      },
+      'enter-weekly',
+    );
+  }
+
+  if ((ctx.missedWeeklyReviews ?? 0) >= 2 && mode !== 'coach' && lower.length < 30) {
+    return tag(
+      {
+        content: `我们 ${ctx.missedWeeklyReviews} 周没正经聊了。不追杀，但账还在——要不要先用 10 分钟补一次简短回顾？说「开始周回顾」就行。`,
+        deposit: 1,
+      },
+      'enter-weekly',
+    );
+  }
 
   if (/周回顾|开始回顾|周日回顾|回顾一下/.test(lower)) {
     return tag(
@@ -448,8 +622,28 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
       {
         content: '好。我退到周回顾再说。你喊我之前，我不多嘴。',
         withdraw: 2,
+        enterSilence: true,
       },
       'silence',
+    );
+  }
+
+  // Propose mission from accumulated clues during daily chat
+  if (
+    !ctx.pendingMissionProposal &&
+    (ctx.languageStats?.proactiveCount ?? 0) + (ctx.messages.length > 12 ? 1 : 0) >= 2 &&
+    /使命|价值观|重要的是|我是谁|家庭优先/.test(lower)
+  ) {
+    const proposal =
+      suggestMissionFromClues(ctx) ??
+      '在重要的角色上持续投入，而不是只在紧急的事上反应';
+    return tag(
+      {
+        content: `最近几次对话里，我听到一个方向：「${proposal}」。要不要进你的使命草稿？回「确认」即可。`,
+        proposeMission: proposal,
+        deposit: 3,
+      },
+      'mission-roles',
     );
   }
 
@@ -491,10 +685,15 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
 
   if (/忙|没时间|太多会|救火|加班/.test(lower)) {
     const analysis = analyzeCalendar(ctx.events, 1);
+    const commits = upcomingCommitmentsToOthers(ctx.todos ?? [], 3);
+    const commitLine =
+      commits.length > 0
+        ? `另外，待办里还有对别人的承诺「${commits[0].title}」临近。`
+        : '';
     return tag(
       {
-        content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。`,
-        sources: ['系统日历 · 近 1 周'],
+        content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。${commitLine}`,
+        sources: ['系统日历 · 近 1 周', ...(commits.length ? ['待办/提醒'] : [])],
         deposit: 2,
       },
       'firefighting',
@@ -507,6 +706,20 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
         content:
           '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
         deposit: 1,
+      },
+      'big-rocks',
+    );
+  }
+
+  // Surface chronically deferred todos when relevant
+  const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
+  if (deferred.length > 0 && /推迟|一直没|todo|待办|忘了/.test(lower)) {
+    return tag(
+      {
+        content: `我看待办里「${deferred[0].title}」已推迟 ${deferred[0].deferredCount} 次——反复推迟的往往是第二象限。这周要不要给它一个日历块？`,
+        sources: ['待办/提醒'],
+        deposit: 2,
+        extractClue: deferred[0].title,
       },
       'big-rocks',
     );
