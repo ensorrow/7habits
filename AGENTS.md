@@ -12,8 +12,8 @@ The current codebase is the **MVP web prototype** of that product: a single-pack
 - `src/types/index.ts` — domain types (`Role`, `CalendarEvent`, `EmotionalAccount`, intervention types, cold-start / weekly-review phases…).
 - `src/services/` — platform-agnostic mentor logic:
   - `calendar.ts` — **the mock-data seam**: `generateMockCalendar()` produces `CalendarEvent[]`. This is where a real EventKit-backed source would plug in for macOS.
-  - `mentor.ts` (+ `mentor.test.ts`), `interventions.ts`, `language.ts`, `emotionalAccount.ts`.
-  - `mentorClient.ts` — browser client for the optional Qoder agent API (`/api/mentor/*`).
+ - `mentor.ts` (+ `mentor.test.ts`), `interventions.ts`, `language.ts`, `emotionalAccount.ts`, `habits.ts` (7 habits → product mechanisms + `habitFocus` tagging).
+ - `mentorClient.ts` — browser client for the optional Qoder agent API (`/api/mentor/*`).
 - `server/` — Node mentor agent API using `@qoder-ai/qoder-agent-sdk` (`npm run agent`).
 - `scripts/verify-flows.ts` (`npm run verify`) and `scripts/verify-ui.mjs` (`npm run verify:ui`) — automated verification.
 
@@ -60,6 +60,8 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - **Playwright browser**: `npm run verify:ui` needs a browser binary. Run `npx playwright install chromium` once (not part of the update script). This step is not needed for `npm test` or the dev server.
 - Mock calendar (`src/services/calendar.ts`) is deliberately shaped so the "健康/health" role gets ~zero time — that is what drives the flagship "宣言 vs 行为" confrontation in the UI and in `mentor.test.ts`.
 - Mentor logic is deterministic and needs no LLM/API key to validate. If an LLM is added later to phrase utterances, keep it out of the core decision logic so L1/L2 validation stays key-free.
+- **7 habits are product mechanisms, not LLM memory**: `src/services/habits.ts` is the canonical map (REQUIREMENTS §9). `respond()` tags each turn with `habitFocus`; Qoder phrasing reads that map from `server/mentorPrompt.ts`. Do not rely on the model’s textbook recall of Covey.
+- **State machines stay local**: cold-start steps, weekly-review acts, intervention priority budget, and emotional-account challenge mode are decided in `src/services/*`. The agent only phrases the structural brief — it must not invent stages or habit lectures.
 - **Qoder Agent SDK** (`@qoder-ai/qoder-agent-sdk`) powers the optional expression layer:
   - Decision/state machine stays in `src/services/mentor.ts` (`respond()`).
   - `server/` runs a small Node HTTP API (`npm run agent`, port **8787**) that phrases mentor speech via **Qoder Cloud Agents** (`model=auto`). Decision/state machine stays in `src/services/mentor.ts`.

@@ -1,4 +1,5 @@
 import type { MentorContext, MentorReply } from '../src/services/mentor.ts';
+import { habitsPromptBlock, habitById } from '../src/services/habits.ts';
 
 export const MENTOR_AGENT_DESCRIPTION =
   '7习惯个人导师：价值观驱动、苏格拉底式提问，用日历与对话证据温和挑战用户范式。';
@@ -18,7 +19,24 @@ export const MENTOR_AGENT_PROMPT = `你是「7习惯导师」——深度践行�
 5. 中文回复，语气克制、具体、短于 180 字为宜（冷启动观察可稍长）。
 6. 不要编造日历数字；brief / 状态里没有的事实不要补。
 7. 用户给的「本回合结构 brief」决定意图与阶段推进——你的任务是把 brief 说成真人导师的话，可润色语气，不可改意图、不可跳阶段。
-8. 改写时必须保留 brief 里的关键事实名词（角色名、数字、「不得不/我选择」等锚点词），不要换成无关表述。`;
+8. 改写时必须保留 brief 里的关键事实名词（角色名、数字、「不得不/我选择」等锚点词），不要换成无关表述。
+9. 禁止对用户点名「习惯1/2/…」「七个习惯」「以终为始」「要事第一」等教材标签；用机制说话（语言、角色、大石头、磨刀）。
+
+${habitsPromptBlock()}`;
+
+function habitFocusLabels(ids: number[] | undefined): string {
+  if (!ids || ids.length === 0) return '（本回合不讲习惯概念，只立人设或倾听）';
+  return ids
+    .map((id) => {
+      try {
+        const h = habitById(id as 1 | 2 | 3 | 4 | 5 | 6 | 7);
+        return `${id}:${h.nameZh}`;
+      } catch {
+        return String(id);
+      }
+    })
+    .join('、');
+}
 
 export function buildTurnPrompt(
   ctx: MentorContext,
@@ -44,6 +62,7 @@ export function buildTurnPrompt(
 - 声量: ${ctx.volume}
 - 日历授权: ${ctx.calendarAuthorized ? '是' : '否'}
 - 角色: ${roles}
+- 本回合习惯机制焦点: ${habitFocusLabels(structural.habitFocus)}
 
 ## 最近对话
 ${recent || '（尚无）'}
@@ -61,11 +80,12 @@ ${JSON.stringify(
       phase: structural.phase,
       suggestRoles: structural.suggestRoles,
       extractClue: structural.extractClue,
+      habitFocus: structural.habitFocus ?? [],
     },
     null,
     2,
   )}
 
 请基于 brief 生成导师最终对用户说的话。
-改写约束：保留 intentContent 中的关键名词与数字；最终只输出对用户说的正文。`;
+改写约束：保留 intentContent 中的关键名词与数字；按 habitFocus 用对应机制说话，但不要点名习惯编号；最终只输出对用户说的正文。`;
 }
