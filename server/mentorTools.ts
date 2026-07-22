@@ -2,6 +2,7 @@ import { createSdkMcpServer, tool } from '@qoder-ai/qoder-agent-sdk';
 import { z } from 'zod';
 import { analyzeCalendar } from '../src/services/calendar.ts';
 import { analyzeLanguage } from '../src/services/language.ts';
+import { FRAMEWORKS, HABITS, mvpHabits } from '../src/services/habits.ts';
 import type { MentorContext } from '../src/services/mentor.ts';
 
 function jsonResult(data: unknown) {
@@ -75,6 +76,30 @@ export function createMentorMcpServer(ctx: MentorContext) {
     { annotations: { readOnlyHint: true } },
   );
 
+  const getHabitsTool = tool(
+    'get_habits',
+    'Return the product’s canonical 7-habits → mechanism map (ground truth). Prefer MVP-only unless includeLater is true. Never dump habit names at the user.',
+    {
+      mvpOnly: z
+        .boolean()
+        .optional()
+        .describe('If true (default), only habits/frameworks marked mvp.'),
+      includeLater: z
+        .boolean()
+        .optional()
+        .describe('If true, include post-MVP habits 4–6. Overrides mvpOnly.'),
+    },
+    async ({ mvpOnly, includeLater }) => {
+      const onlyMvp = includeLater ? false : mvpOnly !== false;
+      return jsonResult({
+        habits: onlyMvp ? mvpHabits() : [...HABITS],
+        frameworks: onlyMvp ? FRAMEWORKS.filter((f) => f.mvp) : [...FRAMEWORKS],
+        note: 'Speak via mechanisms; never name habit numbers or Covey slogans to the user.',
+      });
+    },
+    { annotations: { readOnlyHint: true } },
+  );
+
   return createSdkMcpServer({
     name: 'mentor',
     version: '1.0.0',
@@ -83,6 +108,7 @@ export function createMentorMcpServer(ctx: MentorContext) {
       getEmotionalAccountTool,
       analyzeLanguageTool,
       getRolesTool,
+      getHabitsTool,
     ],
   });
 }
@@ -92,4 +118,5 @@ export const MENTOR_TOOL_NAMES = [
   'mcp__mentor__get_emotional_account',
   'mcp__mentor__analyze_language',
   'mcp__mentor__get_roles',
+  'mcp__mentor__get_habits',
 ] as const;

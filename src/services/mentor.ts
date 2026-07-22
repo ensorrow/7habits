@@ -1,6 +1,7 @@
 import { analyzeCalendar } from './calendar';
 import { analyzeLanguage } from './language';
 import { challengeMode } from './emotionalAccount';
+import { habitFocusForTurn, type HabitId } from './habits';
 import type {
   CalendarEvent,
   ChatMessage,
@@ -48,123 +49,146 @@ export interface MentorReply {
   scheduleReview?: boolean;
   phase?: 'cold-start' | 'daily' | 'weekly-review';
   extractClue?: string;
+  /** Which habit mechanisms this turn exercises (product map, not slogans) */
+  habitFocus?: HabitId[];
+}
+
+function withHabitFocus(
+  reply: MentorReply,
+  focus: HabitId[],
+): MentorReply {
+  return focus.length > 0 ? { ...reply, habitFocus: focus } : { ...reply, habitFocus: [] };
 }
 
 export function coldStartReply(ctx: MentorContext, userText?: string): MentorReply {
   const step = ctx.coldStartStep;
+  const tag = (reply: MentorReply, stepOverride?: string) =>
+    withHabitFocus(
+      reply,
+      habitFocusForTurn({
+        phase: 'cold-start',
+        coldStartStep: stepOverride ?? step,
+      }),
+    );
 
   switch (step) {
     case 'intro':
-      return {
+      return tag({
         content:
           '我是你的导师，不是助手。助手帮你做事，我帮你看清你在做什么。要做到这点，我需要看你的日历和待办。',
         nextColdStartStep: 'permission',
-      };
+      });
 
     case 'permission': {
       const granted = !userText || /同意|好|可以|授权|允许|看吧|开始/.test(userText);
       if (granted) {
-        return {
+        return tag({
           content:
             '好。我会读你的日历——坦白说这件事，是因为「被看见」和「被偷看」只差一句说明。',
           nextColdStartStep: 'observation',
           deposit: 5,
-        };
+        });
       }
-      return {
-        content:
-          '只凭聊天我也能工作，只是我说的话分量会轻一些。你随时可以再打开权限。\n\n日历之外，谁在等你的时间？',
-        nextColdStartStep: 'q1',
-        deposit: 3,
-      };
+      return tag(
+        {
+          content:
+            '只凭聊天我也能工作，只是我说的话分量会轻一些。你随时可以再打开权限。\n\n日历之外，谁在等你的时间？',
+          nextColdStartStep: 'q1',
+          deposit: 3,
+        },
+        'q1',
+      );
     }
 
     case 'observation': {
       if (!userText) {
         const analysis = analyzeCalendar(ctx.events);
-        return {
+        return tag({
           content: `${analysis.observation}\n\n这个分布，是你想要的吗？`,
           sources: ['系统日历 · 近 4 周'],
           nextColdStartStep: 'observation',
           deposit: 8,
-        };
+        });
       }
-      return {
-        content: '记下了。日历之外，谁在等你的时间？',
-        nextColdStartStep: 'q1',
-        extractClue: userText,
-        deposit: 2,
-      };
+      return tag(
+        {
+          content: '记下了。日历之外，谁在等你的时间？',
+          nextColdStartStep: 'q1',
+          extractClue: userText,
+          deposit: 2,
+        },
+        'q1',
+      );
     }
 
     case 'q1':
       if (!userText) {
-        return {
+        return tag({
           content: '日历之外，谁在等你的时间？',
           nextColdStartStep: 'q1',
-        };
+        });
       }
-      return {
+      return tag({
         content: '明白。最近一次觉得「这时间花得值」是什么时候？',
         nextColdStartStep: 'q2',
         extractClue: userText,
         deposit: 2,
-      };
+      });
 
     case 'q2':
       if (!userText) {
-        return {
+        return tag({
           content: '最近一次觉得「这时间花得值」是什么时候？',
           nextColdStartStep: 'q2',
-        };
+        });
       }
-      return {
+      return tag({
         content: '好。如果下周凭空多出 3 小时，你给谁？',
         nextColdStartStep: 'q3',
         extractClue: userText,
         deposit: 2,
-      };
+      });
 
     case 'q3':
       if (!userText) {
-        return {
+        return tag({
           content: '如果下周凭空多出 3 小时，你给谁？',
           nextColdStartStep: 'q3',
-        };
+        });
       }
-      return {
+      return tag({
         content: '好，我消化一下你说的。',
         nextColdStartStep: 'roles-draft',
         extractClue: userText,
         deposit: 2,
-      };
+      });
 
     case 'roles-draft': {
       const roles = inferRoles({ ...ctx.userAnswers, q3: ctx.userAnswers.q3 });
       const list = roles.map((r) => r.name).join('、');
-      return {
+      return tag({
         content: `听下来你至少有这几个身份：${list}。先这么记着，以后随时改——这是草稿，不是判决。`,
         suggestRoles: roles,
         nextColdStartStep: 'first-appointment',
         deposit: 5,
-      };
+      });
     }
 
     case 'first-appointment':
-      return {
+      return tag({
         content:
           '我们约第一次周回顾吧。周日晚上，30 分钟。我会写进日历。\n\n周日之前我会继续观察。到时候我会告诉你一件你自己可能没注意到的事。',
         nextColdStartStep: 'done',
         scheduleReview: true,
         phase: 'daily',
         deposit: 5,
-      };
+      });
 
     default:
-      return {
+      return tag({
         content: '我们已经认识了。有事就跟我说——或者等周日，我来找你。',
         phase: 'daily',
-      };
+      });
   }
 }
 
@@ -210,15 +234,23 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
   const stats = ctx.weeklyStats;
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
   const roles = ctx.roles;
+  const tag = (reply: MentorReply, actOverride?: WeeklyReviewAct) =>
+    withHabitFocus(
+      reply,
+      habitFocusForTurn({
+        phase: 'weekly-review',
+        weeklyReviewAct: actOverride ?? act,
+      }),
+    );
 
   switch (act) {
     case 'prep':
     case 'observation': {
       if (!stats) {
-        return {
+        return tag({
           content: '我还在整理这周的数据。稍等——或者直接告诉我这周哪件事你最不后悔。',
           nextWeeklyAct: 'no-regret',
-        };
+        });
       }
       const total = stats.totalHours || 1;
       const parts = roles
@@ -234,98 +266,113 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
         ? `「${hungry.name}」连续多周接近零投入。`
         : '';
 
-      return {
+      return tag({
         content: `我看你日历上，这周时间大概是这样：${parts}。计划的 ${stats.plannedRocks} 块大石头落地 ${stats.landedRocks} 块。${hungryLine}\n\n这周哪件事你最不后悔？`,
         sources: ['系统日历 · 本周', '大石头计划'],
         nextWeeklyAct: 'no-regret',
         deposit: 4,
-      };
+      });
     }
 
     case 'no-regret':
       if (!userText) {
-        return {
+        return tag({
           content: '这周哪件事你最不后悔？',
           nextWeeklyAct: 'no-regret',
-        };
+        });
       }
-      return {
-        content: buildConfrontation(ctx, mode),
-        sources: ['使命草稿', '日历投入'],
-        nextWeeklyAct: 'confrontation',
-        extractClue: userText,
-        deposit: 3,
-        withdraw: mode === 'assert' ? 4 : 0,
-      };
+      return tag(
+        {
+          content: buildConfrontation(ctx, mode),
+          sources: ['使命草稿', '日历投入'],
+          nextWeeklyAct: 'confrontation',
+          extractClue: userText,
+          deposit: 3,
+          withdraw: mode === 'assert' ? 4 : 0,
+        },
+        'confrontation',
+      );
 
     case 'confrontation': {
       if (!userText) {
-        return {
+        return tag({
           content: buildConfrontation(ctx, mode),
           nextWeeklyAct: 'confrontation',
-        };
+        });
       }
       const hungry = findMostHungry(ctx);
-      return {
-        content: hungry
-          ? `${hungry.name}这个角色，下周你打算给它什么？一句话就行。`
-          : '下周哪个角色你最想喂一点时间？',
-        nextWeeklyAct: 'role-patrol',
-        deposit: 2,
-        extractClue: userText,
-      };
+      return tag(
+        {
+          content: hungry
+            ? `${hungry.name}这个角色，下周你打算给它什么？一句话就行。`
+            : '下周哪个角色你最想喂一点时间？',
+          nextWeeklyAct: 'role-patrol',
+          deposit: 2,
+          extractClue: userText,
+        },
+        'role-patrol',
+      );
     }
 
     case 'role-patrol':
       if (!userText) {
-        return {
+        return tag({
           content: '哪个饥饿的角色，你下周打算喂一点？',
           nextWeeklyAct: 'role-patrol',
-        };
+        });
       }
-      return {
-        content:
-          '还有磨刀——身体、心智、社交、精神，四维里至少一维下周要有安排。大小可妥协，有无不妥协。你选哪一维？',
-        nextWeeklyAct: 'sharpen',
-        extractClue: userText,
-        deposit: 2,
-      };
+      return tag(
+        {
+          content:
+            '还有磨刀——身体、心智、社交、精神，四维里至少一维下周要有安排。大小可妥协，有无不妥协。你选哪一维？',
+          nextWeeklyAct: 'sharpen',
+          extractClue: userText,
+          deposit: 2,
+        },
+        'sharpen',
+      );
 
     case 'sharpen':
       if (!userText) {
-        return {
+        return tag({
           content: '磨刀四维，你选哪一维？',
           nextWeeklyAct: 'sharpen',
-        };
+        });
       }
-      return {
-        content:
-          '好。每个角色 1–2 块大石头，一周总共 5–7 块。没进日历的大石头不算数。\n\n说说你的第一块：给哪个角色、什么事、放周几？我帮你写进日历。',
-        nextWeeklyAct: 'schedule',
-        deposit: 2,
-        extractClue: userText,
-      };
+      return tag(
+        {
+          content:
+            '好。每个角色 1–2 块大石头，一周总共 5–7 块。没进日历的大石头不算数。\n\n说说你的第一块：给哪个角色、什么事、放周几？我帮你写进日历。',
+          nextWeeklyAct: 'schedule',
+          deposit: 2,
+          extractClue: userText,
+        },
+        'schedule',
+      );
 
     case 'schedule':
       if (!userText) {
-        return {
+        return tag({
           content: '第一块大石头：哪个角色、什么事、周几？',
           nextWeeklyAct: 'schedule',
-        };
+        });
       }
-      return {
-        content: buildClosing(ctx, userText),
-        nextWeeklyAct: 'done',
-        phase: 'daily',
-        deposit: 6,
-        scheduleReview: true,
-      };
+      return tag(
+        {
+          content: buildClosing(ctx, userText),
+          nextWeeklyAct: 'done',
+          phase: 'daily',
+          deposit: 6,
+          scheduleReview: true,
+        },
+        'closing',
+      );
 
     default:
-      return {
+      return tag({
         content: '这周的账我们结过了。去过你排好的日子吧——下周我会来问进展。',
         phase: 'daily',
-      };
+      });
   }
 }
 
@@ -365,44 +412,67 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
   const { reactive, proactive } = analyzeLanguage(userText);
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
   const lower = userText.trim();
+  const tag = (
+    reply: MentorReply,
+    dailyKind: Parameters<typeof habitFocusForTurn>[0]['dailyKind'],
+  ) =>
+    withHabitFocus(
+      reply,
+      habitFocusForTurn({ phase: 'daily', dailyKind }),
+    );
 
   if (/周回顾|开始回顾|周日回顾|回顾一下/.test(lower)) {
-    return {
-      content: '好。我已经把这周的数据看过了——我们直接开始。',
-      phase: 'weekly-review',
-      nextWeeklyAct: 'observation',
-    };
+    return tag(
+      {
+        content: '好。我已经把这周的数据看过了——我们直接开始。',
+        phase: 'weekly-review',
+        nextWeeklyAct: 'observation',
+      },
+      'enter-weekly',
+    );
   }
 
   if (/你不懂|胡说|别说了|烦|滚|闭嘴|你错了/.test(lower)) {
-    return {
-      content:
-        '你认真反驳，说明这碰到真的东西了。我不收回观察，但我想听你的版本——你认为我看错了哪一步？',
-      deposit: 3,
-    };
+    return tag(
+      {
+        content:
+          '你认真反驳，说明这碰到真的东西了。我不收回观察，但我想听你的版本——你认为我看错了哪一步？',
+        deposit: 3,
+      },
+      'pushback',
+    );
   }
 
   if (/不想聊|以后再说|别烦我/.test(lower)) {
-    return {
-      content: '好。我退到周回顾再说。你喊我之前，我不多嘴。',
-      withdraw: 2,
-    };
+    return tag(
+      {
+        content: '好。我退到周回顾再说。你喊我之前，我不多嘴。',
+        withdraw: 2,
+      },
+      'silence',
+    );
   }
 
   if (reactive.length > 0 && mode !== 'coach') {
-    return {
-      content: `你刚说「${reactive[0]}」。如果改成「我选择……」，后半句会变成什么？`,
-      extractClue: userText,
-      deposit: 1,
-    };
+    return tag(
+      {
+        content: `你刚说「${reactive[0]}」。如果改成「我选择……」，后半句会变成什么？`,
+        extractClue: userText,
+        deposit: 1,
+      },
+      'reactive-language',
+    );
   }
 
   if (proactive.length > 0) {
-    return {
-      content: `「${proactive[0]}」——这是主动的声音。具体下一步是什么？要不要写进日历？`,
-      deposit: 3,
-      extractClue: userText,
-    };
+    return tag(
+      {
+        content: `「${proactive[0]}」——这是主动的声音。具体下一步是什么？要不要写进日历？`,
+        deposit: 3,
+        extractClue: userText,
+      },
+      'proactive-language',
+    );
   }
 
   if (/使命|角色|重要的是|我是谁/.test(lower)) {
@@ -410,42 +480,57 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
       ctx.roles.length > 0
         ? ctx.roles.map((r) => r.name).join('、')
         : '还在草稿里';
-    return {
-      content: `你目前的角色草稿是：${roleList}。使命不是一次写完的——最近有没有哪件事，让你想改其中一个？`,
-      deposit: 2,
-    };
+    return tag(
+      {
+        content: `你目前的角色草稿是：${roleList}。使命不是一次写完的——最近有没有哪件事，让你想改其中一个？`,
+        deposit: 2,
+      },
+      'mission-roles',
+    );
   }
 
   if (/忙|没时间|太多会|救火|加班/.test(lower)) {
     const analysis = analyzeCalendar(ctx.events, 1);
-    return {
-      content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。`,
-      sources: ['系统日历 · 近 1 周'],
-      deposit: 2,
-    };
+    return tag(
+      {
+        content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。`,
+        sources: ['系统日历 · 近 1 周'],
+        deposit: 2,
+      },
+      'firefighting',
+    );
   }
 
   if (/大石头|安排|计划|下周/.test(lower)) {
-    return {
-      content:
-        '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
-      deposit: 1,
-    };
+    return tag(
+      {
+        content:
+          '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
+        deposit: 1,
+      },
+      'big-rocks',
+    );
   }
 
   if (mode === 'assert') {
-    return {
-      content: `我听到了。在你说的这件事里，哪个选择是你主动做的，哪个是你默认接受的？`,
-      deposit: 1,
-      extractClue: userText,
-    };
+    return tag(
+      {
+        content: `我听到了。在你说的这件事里，哪个选择是你主动做的，哪个是你默认接受的？`,
+        deposit: 1,
+        extractClue: userText,
+      },
+      'reactive-language',
+    );
   }
 
-  return {
-    content: `继续说。我在听——尤其是你反复提到的那个主题。`,
-    deposit: 1,
-    extractClue: userText,
-  };
+  return tag(
+    {
+      content: `继续说。我在听——尤其是你反复提到的那个主题。`,
+      deposit: 1,
+      extractClue: userText,
+    },
+    'generic',
+  );
 }
 
 export function respond(ctx: MentorContext, userText?: string): MentorReply {
@@ -456,7 +541,10 @@ export function respond(ctx: MentorContext, userText?: string): MentorReply {
     return weeklyReviewReply(ctx, userText);
   }
   if (!userText) {
-    return { content: '我在。你想谈这周，还是某件具体的事？' };
+    return withHabitFocus(
+      { content: '我在。你想谈这周，还是某件具体的事？' },
+      [],
+    );
   }
   return dailyReply(ctx, userText);
 }
