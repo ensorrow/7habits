@@ -72,10 +72,22 @@ async function main() {
       body: JSON.stringify({}),
     });
     const status = body as { available?: boolean; authMode?: string; reason?: string };
-    if (res.ok && status.available === false && status.authMode === 'none') {
-      pass('status without PAT → unavailable', status.reason);
+    const envPatPresent = Boolean(
+      process.env.QODER_PERSONAL_ACCESS_TOKEN?.trim() || process.env.QODER_PAT?.trim(),
+    );
+    if (
+      res.ok &&
+      ((envPatPresent && status.available === true && status.authMode === 'accessToken') ||
+        (!envPatPresent && status.available === false && status.authMode === 'none'))
+    ) {
+      pass(
+        envPatPresent
+          ? 'status with env PAT → available'
+          : 'status without PAT → unavailable',
+        status.reason ?? status.authMode,
+      );
     } else {
-      fail('status without PAT → unavailable', JSON.stringify(body));
+      fail('status without request PAT', JSON.stringify(body));
     }
   }
 
@@ -125,7 +137,7 @@ async function main() {
       body: JSON.stringify({
         context: coldStartCtx,
         useAgent: true,
-        // Fake PAT makes status available, but qodercli will fail auth → local fallback
+        // Fake PAT makes status available, but Cloud API will fail auth → local fallback
         accessToken: 'verify-fake-pat-should-fallback',
       }),
     });
@@ -146,6 +158,44 @@ async function main() {
       );
     } else {
       fail('turn with fake PAT still returns structural reply', JSON.stringify(body));
+    }
+  }
+
+  const livePat =
+    process.env.QODER_PERSONAL_ACCESS_TOKEN?.trim() || process.env.QODER_PAT?.trim();
+  if (livePat) {
+    const { res, body } = await jsonFetch('/api/mentor/turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: coldStartCtx,
+        useAgent: true,
+      }),
+    });
+    const turn = body as {
+      source?: string;
+      error?: string;
+      reply?: { content?: string; nextColdStartStep?: string };
+    };
+    if (
+      res.ok &&
+      turn.source === 'qoder' &&
+      turn.reply?.nextColdStartStep === 'permission' &&
+      Boolean(turn.reply.content?.trim())
+    ) {
+      pass(
+        'turn with live PAT → qoder (model=auto)',
+        turn.reply.content.slice(0, 80),
+      );
+    } else {
+      fail(
+        'turn with live PAT → qoder (model=auto)',
+        JSON.stringify({
+          source: turn.source,
+          error: turn.error?.slice(0, 200),
+          content: turn.reply?.content?.slice(0, 120),
+        }),
+      );
     }
   }
 

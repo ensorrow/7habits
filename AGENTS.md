@@ -61,7 +61,7 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - Mentor logic is deterministic and needs no LLM/API key to validate. If an LLM is added later to phrase utterances, keep it out of the core decision logic so L1/L2 validation stays key-free.
 - **Qoder Agent SDK** (`@qoder-ai/qoder-agent-sdk`) powers the optional expression layer:
   - Decision/state machine stays in `src/services/mentor.ts` (`respond()`).
-  - `server/` runs a small Node HTTP API (`npm run agent`, port **8787**) that calls Qoder with a custom `seven-habits-mentor` agent + mentor MCP tools (`analyze_calendar`, emotional account, language, roles).
+  - `server/` runs a small Node HTTP API (`npm run agent`, port **8787**) that phrases mentor speech via **Qoder Cloud Agents** (`model=auto`). Decision/state machine stays in `src/services/mentor.ts`.
   - Vite proxies `/api` → `8787`. Use `npm run dev:all` to start web + agent together.
-  - Auth: set `QODER_PERSONAL_ACCESS_TOKEN`, or locally `QODER_USE_CLI_AUTH=1` after `qodercli login`. Without auth/server, the UI falls back to local templates automatically.
+  - Auth: set `QODER_PAT` or `QODER_PERSONAL_ACCESS_TOKEN` (optional `QODER_ENVIRONMENT_ID`). Without auth/server, the UI falls back to local templates automatically.
   - Settings →「导师引擎」can force `local` or keep `auto`.
