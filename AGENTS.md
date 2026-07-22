@@ -49,7 +49,9 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - Build: `npm run build` (`tsc -b && vite build`).
 - Preview built app: `npm run preview` → `http://localhost:4173`.
 - Verify (logic flows): `npm run verify` (tsx).
+- Verify (mentor agent API): `npm run verify:agent` (requires `npm run agent`).
 - Verify (browser UI, screenshots): `npm run verify:ui` (Playwright → `/opt/cursor/artifacts/screenshots`).
+- Verify (L1 + agent API + build): `npm run verify:all` (start agent first for `verify:agent`).
 
 ### Non-obvious notes
 

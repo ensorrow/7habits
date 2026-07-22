@@ -71,7 +71,26 @@ async function main() {
   console.log('SHOT 06 weekly');
 
   await page.getByRole('button', { name: '设置' }).click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(400);
+
+  const patInput = page.locator('#qoder-pat');
+  await patInput.waitFor({ state: 'visible', timeout: 8000 });
+  await patInput.fill('verify-ui-pat-token');
+  await page.getByRole('button', { name: '保存并检测' }).click();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/06b-settings-pat.png`, fullPage: true });
+  console.log('SHOT 06b settings PAT');
+
+  const settingsText = await page.locator('.settings-body').innerText();
+  const hasPatField = (await patInput.count()) > 0;
+  const hasPatLabel = settingsText.includes('Qoder Personal Access Token');
+  const hasAgentStatus = /Qoder 可用|未配置认证|Agent 服务未启动|accessToken/.test(
+    settingsText,
+  );
+  console.log('UI_CHECK has_pat_field=' + hasPatField);
+  console.log('UI_CHECK has_pat_label=' + hasPatLabel);
+  console.log('UI_CHECK agent_status_mentions_qoder=' + hasAgentStatus);
+
   await page.getByRole('button', { name: '演示：大石头被吞掉' }).click();
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: '对话' }).click();
@@ -84,14 +103,27 @@ async function main() {
   console.log('LAST_MENTOR', (mentorTexts.at(-1) || '').slice(0, 120));
 
   const bodyText = await page.locator('body').innerText();
-  console.log('UI_CHECK has_brand=' + bodyText.includes('7习惯导师'));
-  console.log(
-    'UI_CHECK has_calendar_insight=' +
-      mentorTexts.some((t) => t.includes('会') && t.includes('分布')),
-  );
-  console.log('UI_CHECK has_roles=' + /工程师|父亲|健康/.test(bodyText));
+  const hasBrand = bodyText.includes('7习惯导师');
+  const hasCalendarInsight = mentorTexts.some((t) => t.includes('会') && t.includes('分布'));
+  const hasRoles = /工程师|父亲|健康/.test(bodyText);
+  console.log('UI_CHECK has_brand=' + hasBrand);
+  console.log('UI_CHECK has_calendar_insight=' + hasCalendarInsight);
+  console.log('UI_CHECK has_roles=' + hasRoles);
+
+  const failed = [
+    !hasPatField,
+    !hasPatLabel,
+    !hasAgentStatus,
+    !hasBrand,
+    !hasCalendarInsight,
+    !hasRoles,
+  ].some(Boolean);
 
   await browser.close();
+  if (failed) {
+    console.error('UI verification assertions failed');
+    process.exit(1);
+  }
   console.log('UI verification done');
 }
 

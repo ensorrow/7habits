@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "verify": "tsx scripts/verify-flows.ts",
-    "verify:ui": "node scripts/verify-ui.mjs"
+    "verify:agent": "tsx scripts/verify-agent-api.ts",
+    "verify:ui": "node scripts/verify-ui.mjs",
+    "verify:all": "npm run lint && npm test && npm run verify && npm run verify:agent && npm run build"
   },
   "dependencies": {
     "@qoder-ai/qoder-agent-sdk": "^1.0.15",
