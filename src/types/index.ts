@@ -127,12 +127,16 @@ export interface WeeklyStats {
   language: LanguageStats;
 }
 
+export type MentorEngine = 'auto' | 'local';
+
 export interface AppSettings {
   volume: VolumeSetting;
   calendarAuthorized: boolean;
   remindersAuthorized: boolean;
   weeklyReviewDay: number; // 0=Sun
   weeklyReviewHour: number;
+  /** auto = Qoder agent when server/auth available, else local rules */
+  mentorEngine: MentorEngine;
 }
 
 export interface MentorState {

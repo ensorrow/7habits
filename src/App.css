@@ -158,6 +158,27 @@
   line-height: 1.45;
 }
 
+.engine-badge {
+  display: inline-block;
+  margin-top: 0.55rem !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.bubble.thinking .bubble-body {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.chip:disabled,
+.btn-primary:disabled,
+.composer-row textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;

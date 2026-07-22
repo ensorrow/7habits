@@ -8,10 +8,21 @@
 
 ```bash
 npm install
-npm run dev
+npm run dev:all   # Vite UI + Qoder mentor agent API (8787)
 ```
 
-浏览器打开提示的本地地址。MVP 为 Web 原型（模拟菜单栏 + 对话窗 + 角色仪表盘），日历数据为本地 mock，架构预留 EventKit / macOS 原生接入。
+浏览器打开提示的本地地址。仅 UI（本地规则引擎）：`npm run dev`。仅 Agent 服务：`npm run agent`。
+
+MVP 为 Web 原型（模拟菜单栏 + 对话窗 + 角色仪表盘），日历数据为本地 mock。对话**决策**仍由本地规则引擎驱动；配置 `QODER_PERSONAL_ACCESS_TOKEN` 后，表达层走 [Qoder Agent SDK](https://docs.qoder.com/en/cli/sdk/quick-start) 润色话术。
+
+```bash
+export QODER_PERSONAL_ACCESS_TOKEN=your-pat
+npm run dev:all
+```
+
+本地已 `qodercli login` 时也可：`QODER_USE_CLI_AUTH=1 npm run agent`。
+
+架构预留 EventKit / macOS 原生接入。
 
 ## MVP 覆盖
 

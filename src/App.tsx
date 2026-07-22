@@ -79,6 +79,8 @@ function InterventionBanner() {
 function ChatWindow() {
   const messages = useAppStore((s) => s.messages);
   const send = useAppStore((s) => s.sendUserMessage);
+  const busy = useAppStore((s) => s.mentorBusy);
+  const source = useAppStore((s) => s.lastMentorSource);
   const phase = useAppStore((s) => s.mentorPhase);
   const coldStep = useAppStore((s) => s.coldStartStep);
   const startWeekly = useAppStore((s) => s.startWeeklyReview);
@@ -89,7 +91,7 @@ function ChatWindow() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [messages.length, busy]);
 
   const quick = useMemo(() => {
     if (phase === 'cold-start' && coldStep === 'permission') {
@@ -114,8 +116,8 @@ function ChatWindow() {
   }, [phase, coldStep]);
 
   const onSend = () => {
-    if (!text.trim()) return;
-    send(text);
+    if (!text.trim() || busy) return;
+    void send(text);
     setText('');
   };
 
@@ -124,6 +126,11 @@ function ChatWindow() {
       <div className="panel-header">
         <h1>7习惯导师</h1>
         <p>不是帮你挤时间的秘书——在具体事件里，让你看见自己的范式。</p>
+        {source && (
+          <p className="engine-badge" data-source={source}>
+            {source === 'qoder' ? 'Qoder Agent' : '本地规则引擎'}
+          </p>
+        )}
       </div>
       <InterventionBanner />
       <div className="chat-log">
@@ -138,28 +145,35 @@ function ChatWindow() {
             )}
           </article>
         ))}
+        {busy && (
+          <article className="bubble mentor thinking" aria-live="polite">
+            <div className="bubble-label">导师</div>
+            <div className="bubble-body">在想……</div>
+          </article>
+        )}
         <div ref={bottomRef} />
       </div>
       <div className="chat-composer">
         {roles.length > 0 && roles.some((r) => !r.confirmed) && (
           <div className="quick-row">
-            <button className="chip" onClick={confirmRoles}>
+            <button className="chip" onClick={confirmRoles} disabled={busy}>
               确认角色草稿
             </button>
           </div>
         )}
         <div className="quick-row">
           {quick.map((q) => (
-            <button key={q} className="chip" onClick={() => send(q)}>
+            <button key={q} className="chip" onClick={() => void send(q)} disabled={busy}>
               {q}
             </button>
           ))}
           {phase === 'daily' && (
             <button
               className="chip"
+              disabled={busy}
               onClick={() => {
                 startWeekly();
-                send('开始周回顾');
+                void send('开始周回顾');
               }}
             >
               开始周回顾
@@ -172,6 +186,7 @@ function ChatWindow() {
             onChange={(e) => setText(e.target.value)}
             placeholder="跟导师说……"
             rows={2}
+            disabled={busy}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -179,7 +194,7 @@ function ChatWindow() {
               }
             }}
           />
-          <button className="btn-primary" onClick={onSend} disabled={!text.trim()}>
+          <button className="btn-primary" onClick={onSend} disabled={!text.trim() || busy}>
             发送
           </button>
         </div>
@@ -333,11 +348,20 @@ function RoleDashboard() {
 function SettingsPanel() {
   const volume = useAppStore((s) => s.settings.volume);
   const setVolume = useAppStore((s) => s.setVolume);
+  const mentorEngine = useAppStore((s) => s.settings.mentorEngine);
+  const setMentorEngine = useAppStore((s) => s.setMentorEngine);
+  const agentStatus = useAppStore((s) => s.agentStatus);
+  const refreshAgentStatus = useAppStore((s) => s.refreshAgentStatus);
+  const lastError = useAppStore((s) => s.lastMentorError);
   const auth = useAppStore((s) => s.settings.calendarAuthorized);
   const setAuth = useAppStore((s) => s.setCalendarAuth);
   const reset = useAppStore((s) => s.resetAll);
   const demo = useAppStore((s) => s.triggerDemoIntervention);
   const scan = useAppStore((s) => s.scanInterventions);
+
+  useEffect(() => {
+    void refreshAgentStatus();
+  }, [refreshAgentStatus]);
 
   return (
     <section className="panel" aria-label="设置">
@@ -369,6 +393,40 @@ function SettingsPanel() {
         </div>
 
         <div className="setting-block">
+          <label>导师引擎（Qoder Agent SDK）</label>
+          <p className="hint">
+            决策层始终是本地规则（冷启动/周回顾/干预预算）。表达层可交给 Qoder Agent
+            润色话术；无 token 或服务未启动时自动回退本地模板。
+          </p>
+          <div className="volume-slider">
+            <button
+              className={`volume-option ${mentorEngine === 'auto' ? 'active' : ''}`}
+              onClick={() => setMentorEngine('auto')}
+            >
+              自动
+              <small>有 Agent 用 Qoder</small>
+            </button>
+            <button
+              className={`volume-option ${mentorEngine === 'local' ? 'active' : ''}`}
+              onClick={() => setMentorEngine('local')}
+            >
+              仅本地
+              <small>规则模板</small>
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: '0.6rem' }}>
+            状态：
+            {agentStatus?.available
+              ? `Qoder 可用（${agentStatus.authMode}）`
+              : agentStatus?.reason ?? '检测中…'}
+          </p>
+          {lastError && <p className="hint">{lastError}</p>}
+          <button className="btn-ghost" onClick={() => void refreshAgentStatus()}>
+            刷新 Agent 状态
+          </button>
+        </div>
+
+        <div className="setting-block">
           <label>日历与提醒</label>
           <p className="hint">
             MVP 使用本地模拟日历数据（近 4 周会议密集、深夜加班、周末空档）。
@@ -389,7 +447,7 @@ function SettingsPanel() {
             <button className="btn-ghost" onClick={scan}>
               扫描干预
             </button>
-            <button className="btn-ghost" onClick={reset}>
+            <button className="btn-ghost" onClick={() => void reset()}>
               重置全部进度
             </button>
           </div>
