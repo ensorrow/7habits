@@ -143,7 +143,7 @@ final class AppModel: ObservableObject {
     lastMentorError = nil
     defer { mentorBusy = false }
 
-    guard agentReachable else {
+    if !agentReachable {
       await refreshAgent()
       if !agentReachable {
         lastMentorError = "请先运行 `npm run agent`（默认 8787），原生壳通过本地 API 复用导师决策逻辑。"

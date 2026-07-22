@@ -20,7 +20,7 @@ The macOS shell implements the same seam with EventKit:
 
 ```
 // macos/SevenHabitsMentor/Sources/EventKitCalendarStore.swift
-@MainActor public final class EventKitCalendarStore: CalendarProviding { ... }
+public final class EventKitCalendarStore: CalendarProviding { ... }
 ```
 
 All mentor logic consumes `CalendarEvent[]` (see `src/types/index.ts` / `SevenHabitsCore.Models`) and never talks to a platform API directly.
