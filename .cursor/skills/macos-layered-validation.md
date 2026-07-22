@@ -16,20 +16,23 @@ The web prototype gets calendar data from a single injected source:
 export function generateMockCalendar(now = new Date()): CalendarEvent[] { ... }
 ```
 
-All mentor logic consumes `CalendarEvent[]` (see `src/types/index.ts`) and never talks to a platform API directly. To reach the macOS product:
+The macOS shell implements the same seam with EventKit:
 
-- Replace/augment the mock source with an **EventKit-backed loader** (`EKEventStore` → `CalendarEvent[]`), plus a write path for scheduling "big rocks" back into the real Calendar.
-- Keep the mentor decision logic (`src/services/mentor.ts`, `interventions.ts`, `language.ts`, `emotionalAccount.ts`) unchanged and platform-agnostic.
-- Two integration options for reusing that logic from a Swift shell:
-  1. Run the logic as a local agent service (Node) that the Swift app calls over localhost; or
-  2. Port/mirror it into a Swift package, treating this TS code + its tests as the executable spec.
+```
+// macos/SevenHabitsMentor/Sources/EventKitCalendarStore.swift
+public final class EventKitCalendarStore: CalendarProviding { ... }
+```
+
+All mentor logic consumes `CalendarEvent[]` (see `src/types/index.ts` / `SevenHabitsCore.Models`) and never talks to a platform API directly.
+
+Integration choice (option 1 from the original plan): the Swift shell calls the Node mentor agent over localhost (`npm run agent` → `:8787`). Decision/state machine stays in `src/services/mentor.ts`. Keep that logic unchanged and platform-agnostic.
 
 ## How to validate L3 (on macOS)
 
-1. Open the Xcode project / Swift package on macOS.
+1. `open macos/SevenHabitsMentor.xcodeproj` (and run `npm run agent` in the repo root).
 2. Build & run the menu-bar app; grant Calendar/Reminders permission when prompted.
 3. Verify against `REQUIREMENTS.md`: cold-start "seen" moment, weekly-review three acts, writing a big rock into the real Calendar via EventKit, and menu-bar status changes for interventions.
-4. In CI, run Swift unit tests for the EventKit adapter with a stubbed store on a `macos-latest` runner.
+4. In CI (`.github/workflows/macos.yml`), run `swift test` in `SevenHabitsCore` and `xcodebuild` for the app on `macos-14`.
 
 ## What a Cursor Cloud (Linux) agent should do for L3 work
 

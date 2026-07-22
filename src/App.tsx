@@ -485,8 +485,10 @@ function SettingsPanel() {
         <div className="setting-block">
           <label>日历与提醒</label>
           <p className="hint">
-            MVP 使用本地模拟日历数据（近 4 周会议密集、深夜加班、周末空档）。
-            未来通过 EventKit 读写系统日历。
+            Web 原型使用本地模拟日历（近 4 周会议密集、深夜加班、周末空档）。
+            系统日历读写在 macOS 原生壳（
+            <code>macos/</code>
+            ）经 EventKit 完成——同一套 <code>CalendarEvent</code> 形状。
           </p>
           <button className="btn-ghost" onClick={() => setAuth(!auth)}>
             {auth ? '已授权（模拟）' : '授权日历（模拟）'}

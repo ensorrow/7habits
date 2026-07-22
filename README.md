@@ -15,6 +15,8 @@ npm run dev:all   # Vite UI + Qoder mentor agent API (8787)
 
 MVP 为 Web 原型（模拟菜单栏 + 对话窗 + 角色仪表盘），日历数据为本地 mock。对话**决策**仍由本地规则引擎驱动；在设置里粘贴 Qoder PAT（或配置 `QODER_PAT` / `QODER_PERSONAL_ACCESS_TOKEN`）后，表达层走 [Qoder Cloud Agents](https://docs.qoder.com/cloud-agents/api/models/list)（写死 `model=auto`）润色话术。
 
+**macOS 原生壳（L3）** 在 [`macos/`](./macos/)：菜单栏 App + EventKit 读写系统日历，决策仍走 `npm run agent`。详见 [`macos/README.md`](./macos/README.md)。
+
 ```bash
 npm run dev:all
 # 打开设置 → 粘贴 PAT →「保存并检测」
@@ -25,9 +27,11 @@ npm run dev:all
 ```bash
 export QODER_PAT=your-pat
 # 或: export QODER_PERSONAL_ACCESS_TOKEN=your-pat
-npm run dev:all
+npm run agent   # 原生壳依赖此服务
+open macos/SevenHabitsMentor.xcodeproj
 ```
-架构预留 EventKit / macOS 原生接入。
+
+Web 原型继续用 mock；原生壳经 EventKit 接入真实日历。
 
 ## MVP 覆盖
 
@@ -36,3 +40,4 @@ npm run dev:all
 - 周回顾三幕剧（回顾-对质-排程）
 - 角色仪表盘 / 使命草稿 / 情感账户
 - 主动干预预算制（P0–P3）与声量设置
+- **macOS L3**：菜单栏 + 对话窗 + EventKit 日历读写（`macos/`）
