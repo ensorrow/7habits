@@ -13,6 +13,8 @@ The current codebase is the **MVP web prototype** of that product: a single-pack
 - `src/services/` — platform-agnostic mentor logic:
   - `calendar.ts` — **the mock-data seam**: `generateMockCalendar()` produces `CalendarEvent[]`. This is where a real EventKit-backed source would plug in for macOS.
   - `mentor.ts` (+ `mentor.test.ts`), `interventions.ts`, `language.ts`, `emotionalAccount.ts`.
+  - `mentorClient.ts` — browser client for the optional Qoder agent API (`/api/mentor/*`).
+- `server/` — Node mentor agent API using `@qoder-ai/qoder-agent-sdk` (`npm run agent`).
 - `scripts/verify-flows.ts` (`npm run verify`) and `scripts/verify-ui.mjs` (`npm run verify:ui`) — automated verification.
 
 ## Layered validation
@@ -40,12 +42,16 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 
 - Install: `npm install` (also the update script).
 - Dev server: `npm run dev` → Vite on `http://localhost:5173`.
+- Web + mentor agent API: `npm run dev:all` (Vite + `npm run agent` on **8787**).
+- Mentor agent only: `npm run agent`.
 - Lint: `npm run lint` (oxlint).
 - Test: `npm test` (Vitest, headless).
 - Build: `npm run build` (`tsc -b && vite build`).
 - Preview built app: `npm run preview` → `http://localhost:4173`.
 - Verify (logic flows): `npm run verify` (tsx).
+- Verify (mentor agent API): `npm run verify:agent` (requires `npm run agent`).
 - Verify (browser UI, screenshots): `npm run verify:ui` (Playwright → `/opt/cursor/artifacts/screenshots`).
+- Verify (L1 + agent API + build): `npm run verify:all` (start agent first for `verify:agent`).
 
 ### Non-obvious notes
 
@@ -53,3 +59,9 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - **Playwright browser**: `npm run verify:ui` needs a browser binary. Run `npx playwright install chromium` once (not part of the update script). This step is not needed for `npm test` or the dev server.
 - Mock calendar (`src/services/calendar.ts`) is deliberately shaped so the "健康/health" role gets ~zero time — that is what drives the flagship "宣言 vs 行为" confrontation in the UI and in `mentor.test.ts`.
 - Mentor logic is deterministic and needs no LLM/API key to validate. If an LLM is added later to phrase utterances, keep it out of the core decision logic so L1/L2 validation stays key-free.
+- **Qoder Agent SDK** (`@qoder-ai/qoder-agent-sdk`) powers the optional expression layer:
+  - Decision/state machine stays in `src/services/mentor.ts` (`respond()`).
+  - `server/` runs a small Node HTTP API (`npm run agent`, port **8787**) that calls Qoder with a custom `seven-habits-mentor` agent + mentor MCP tools (`analyze_calendar`, emotional account, language, roles).
+  - Vite proxies `/api` → `8787`. Use `npm run dev:all` to start web + agent together.
+  - Auth: set `QODER_PERSONAL_ACCESS_TOKEN`, or locally `QODER_USE_CLI_AUTH=1` after `qodercli login`. Without auth/server, the UI falls back to local templates automatically.
+  - Settings →「导师引擎」can force `local` or keep `auto`.

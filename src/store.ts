@@ -28,6 +28,12 @@ import {
 import { createAccount, deposit, withdraw } from './services/emotionalAccount';
 import { mergeLanguageStats } from './services/language';
 import { respond, type MentorContext } from './services/mentor';
+import {
+  fetchMentorStatus,
+  requestMentorTurn,
+  type MentorAgentSource,
+  type MentorAgentStatus,
+} from './services/mentorClient';
 import { demoSwallowedRock, evaluateInterventions } from './services/interventions';
 
 interface AppStore {
@@ -42,6 +48,10 @@ interface AppStore {
   lastInterventionAt?: string;
   pendingIntervention: Intervention | null;
   menubarBadge: boolean;
+  mentorBusy: boolean;
+  lastMentorSource: MentorAgentSource | null;
+  lastMentorError?: string;
+  agentStatus: MentorAgentStatus | null;
 
   roles: Role[];
   mission: MissionDraft;
@@ -58,9 +68,12 @@ interface AppStore {
   setView: (view: AppView) => void;
   setVolume: (v: AppSettings['volume']) => void;
   setCalendarAuth: (ok: boolean) => void;
+  setMentorEngine: (engine: AppSettings['mentorEngine']) => void;
+  setQoderPat: (pat: string) => void;
+  refreshAgentStatus: () => Promise<void>;
   bootstrap: () => void;
-  sendUserMessage: (text: string) => void;
-  advanceMentor: () => void;
+  sendUserMessage: (text: string) => Promise<void>;
+  advanceMentor: () => Promise<void>;
   startWeeklyReview: () => void;
   acknowledgeIntervention: () => void;
   dismissIntervention: () => void;
@@ -69,7 +82,7 @@ interface AppStore {
   confirmRoles: () => void;
   updateRole: (id: string, patch: Partial<Role>) => void;
   addBigRock: (rock: Omit<BigRock, 'id' | 'status'>) => void;
-  resetAll: () => void;
+  resetAll: () => Promise<void>;
 }
 
 function msg(
@@ -191,6 +204,58 @@ function applyReply(
   });
 }
 
+async function runMentorTurn(
+  get: () => AppStore,
+  set: (p: Partial<AppStore>) => void,
+  userText?: string,
+  answerKey?: keyof MentorContext['userAnswers'],
+) {
+  if (get().mentorBusy) return;
+  set({ mentorBusy: true, lastMentorError: undefined });
+  try {
+    const useAgent = get().settings.mentorEngine !== 'local';
+    const result = await requestMentorTurn(
+      buildCtx(get()),
+      userText,
+      useAgent,
+      get().settings.qoderPat,
+    );
+    applyReply(get, set, result.reply, answerKey, userText);
+    set({
+      lastMentorSource: result.source,
+      lastMentorError: result.error,
+    });
+  } finally {
+    set({ mentorBusy: false });
+  }
+}
+
+async function maybeAutoAdvance(get: () => AppStore, set: (p: Partial<AppStore>) => void) {
+  const after = get();
+  if (after.mentorPhase !== 'cold-start') return;
+  if (
+    after.coldStartStep !== 'observation' &&
+    after.coldStartStep !== 'roles-draft' &&
+    after.coldStartStep !== 'first-appointment'
+  ) {
+    return;
+  }
+
+  const last = after.messages[after.messages.length - 1];
+  if (last?.sender !== 'mentor') return;
+
+  if (after.coldStartStep === 'observation') {
+    if (last.content.includes('这个分布')) return;
+  }
+
+  await runMentorTurn(get, set);
+
+  if (get().coldStartStep === 'first-appointment') {
+    await new Promise((r) => setTimeout(r, 450));
+    await runMentorTurn(get, set);
+  }
+}
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
@@ -202,6 +267,8 @@ export const useAppStore = create<AppStore>()(
         remindersAuthorized: false,
         weeklyReviewDay: 0,
         weeklyReviewHour: 20,
+        mentorEngine: 'auto',
+        qoderPat: '',
       },
       mentorPhase: 'cold-start',
       coldStartStep: 'intro',
@@ -210,6 +277,9 @@ export const useAppStore = create<AppStore>()(
       interventionsThisWeek: 0,
       pendingIntervention: null,
       menubarBadge: false,
+      mentorBusy: false,
+      lastMentorSource: null,
+      agentStatus: null,
 
       roles: [],
       mission: { statements: [], clues: [], updatedAt: formatISO(new Date()) },
@@ -239,11 +309,20 @@ export const useAppStore = create<AppStore>()(
             remindersAuthorized: ok,
           },
         }),
+      setMentorEngine: (mentorEngine) =>
+        set({ settings: { ...get().settings, mentorEngine } }),
+      setQoderPat: (qoderPat) =>
+        set({ settings: { ...get().settings, qoderPat } }),
+      refreshAgentStatus: async () => {
+        const status = await fetchMentorStatus(get().settings.qoderPat);
+        set({ agentStatus: status });
+      },
 
       bootstrap: () => {
         const s = get();
         if (s.messages.length > 0) {
           set({ hydrated: true });
+          void get().refreshAgentStatus();
           return;
         }
         const events = generateMockCalendar();
@@ -254,31 +333,28 @@ export const useAppStore = create<AppStore>()(
           hydrated: true,
           messages: [],
         });
-        // Kick off cold start
-        const reply = respond(buildCtx({ ...get(), events, todos } as AppStore));
-        applyReply(get, set, reply);
+        void get().refreshAgentStatus();
+        void runMentorTurn(get, set);
       },
 
-      advanceMentor: () => {
+      advanceMentor: async () => {
         const s = get();
         if (s.mentorPhase === 'cold-start' && s.coldStartStep === 'observation') {
           get().setCalendarAuth(true);
         }
-        // For steps that don't need user input (observation after permission)
         if (
           s.mentorPhase === 'cold-start' &&
           (s.coldStartStep === 'observation' ||
             s.coldStartStep === 'roles-draft' ||
             s.coldStartStep === 'first-appointment')
         ) {
-          const reply = respond(buildCtx(get()));
-          applyReply(get, set, reply);
+          await runMentorTurn(get, set);
         }
       },
 
-      sendUserMessage: (text) => {
+      sendUserMessage: async (text) => {
         const trimmed = text.trim();
-        if (!trimmed) return;
+        if (!trimmed || get().mentorBusy) return;
 
         const s = get();
         const languageStats = mergeLanguageStats(s.languageStats, trimmed);
@@ -309,42 +385,9 @@ export const useAppStore = create<AppStore>()(
           get().startWeeklyReview();
         }
 
-        const reply = respond(buildCtx(get()), trimmed);
-        applyReply(get, set, reply, answerKey, trimmed);
-
-        // Auto-continue mentor-driven beats that need no user input
-        const maybeAdvance = () => {
-          const after = get();
-          if (after.mentorPhase !== 'cold-start') return;
-          if (
-            after.coldStartStep === 'observation' ||
-            after.coldStartStep === 'roles-draft' ||
-            after.coldStartStep === 'first-appointment'
-          ) {
-            // Only auto-speak when the last message is already from mentor
-            // and step is a "mentor presents" beat without waiting for answer.
-            // observation: after permission, mentor should present analysis once.
-            const last = after.messages[after.messages.length - 1];
-            if (last?.sender !== 'mentor') return;
-
-            if (after.coldStartStep === 'observation') {
-              // If observation text already contains the calendar insight, wait for user.
-              if (last.content.includes('这个分布')) return;
-            }
-
-            const r = respond(buildCtx(get()));
-            applyReply(get, set, r);
-
-            if (get().coldStartStep === 'first-appointment') {
-              setTimeout(() => {
-                const r2 = respond(buildCtx(get()));
-                applyReply(get, set, r2);
-              }, 450);
-            }
-          }
-        };
-
-        setTimeout(maybeAdvance, 400);
+        await runMentorTurn(get, set, trimmed, answerKey);
+        await new Promise((r) => setTimeout(r, 400));
+        await maybeAutoAdvance(get, set);
       },
 
       startWeeklyReview: () => {
@@ -499,7 +542,7 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
-      resetAll: () => {
+      resetAll: async () => {
         set({
           view: 'chat',
           settings: {
@@ -508,6 +551,8 @@ export const useAppStore = create<AppStore>()(
             remindersAuthorized: false,
             weeklyReviewDay: 0,
             weeklyReviewHour: 20,
+            mentorEngine: get().settings.mentorEngine,
+            qoderPat: get().settings.qoderPat,
           },
           mentorPhase: 'cold-start',
           coldStartStep: 'intro',
@@ -517,6 +562,9 @@ export const useAppStore = create<AppStore>()(
           lastInterventionAt: undefined,
           pendingIntervention: null,
           menubarBadge: false,
+          mentorBusy: false,
+          lastMentorSource: null,
+          lastMentorError: undefined,
           roles: [],
           mission: { statements: [], clues: [], updatedAt: formatISO(new Date()) },
           emotionalAccount: createAccount(),
@@ -534,8 +582,7 @@ export const useAppStore = create<AppStore>()(
             proactivePhrases: [],
           },
         });
-        const reply = respond(buildCtx(get()));
-        applyReply(get, set, reply);
+        await runMentorTurn(get, set);
       },
     }),
     {
@@ -558,6 +605,23 @@ export const useAppStore = create<AppStore>()(
         userAnswers: s.userAnswers,
         languageStats: s.languageStats,
       }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<AppStore> | undefined;
+        const settings = {
+          ...current.settings,
+          ...(p?.settings ?? {}),
+          mentorEngine: p?.settings?.mentorEngine ?? current.settings.mentorEngine,
+          qoderPat: p?.settings?.qoderPat ?? current.settings.qoderPat,
+        };
+        return {
+          ...current,
+          ...p,
+          settings,
+          mentorBusy: false,
+          lastMentorSource: null,
+          agentStatus: null,
+        };
+      },
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.hydrated = true;

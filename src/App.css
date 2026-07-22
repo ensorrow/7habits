@@ -158,6 +158,27 @@
   line-height: 1.45;
 }
 
+.engine-badge {
+  display: inline-block;
+  margin-top: 0.55rem !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.bubble.thinking .bubble-body {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.chip:disabled,
+.btn-primary:disabled,
+.composer-row textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;
@@ -468,6 +489,39 @@
   color: var(--mist-dim);
   font-size: 0.85rem;
   line-height: 1.45;
+}
+
+.hint a {
+  color: var(--brass-bright);
+}
+
+.pat-label {
+  margin-top: 1rem;
+}
+
+.pat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+
+.pat-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mist);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.pat-input:focus {
+  outline: 1px solid var(--brass);
+  border-color: var(--brass);
 }
 
 .empty-dashboard {
