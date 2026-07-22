@@ -235,7 +235,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
         : '';
 
       return {
-        content: `这周你的时间大概是这样：${parts}。计划的 ${stats.plannedRocks} 块大石头落地 ${stats.landedRocks} 块。${hungryLine}\n\n这周哪件事你最不后悔？`,
+        content: `我看你日历上，这周时间大概是这样：${parts}。计划的 ${stats.plannedRocks} 块大石头落地 ${stats.landedRocks} 块。${hungryLine}\n\n这周哪件事你最不后悔？`,
         sources: ['系统日历 · 本周', '大石头计划'],
         nextWeeklyAct: 'no-regret',
         deposit: 4,
@@ -352,7 +352,7 @@ function buildConfrontation(
   if (mode === 'ask') {
     return `你说它重要，但日历上「${name}」这周的投入接近零。这是例外，还是已经成了模式？`;
   }
-  return `你说「${name}」重要，但过去两周你在这上面的投入为零。我认为你在用忙碌躲开这件事。我只挑这一处——你怎么回应？`;
+  return `你说「${name}」重要，但我看你日历上过去两周在这上面的投入为零。我认为你在用忙碌躲开这件事。我只挑这一处——你怎么回应？`;
 }
 
 function buildClosing(ctx: MentorContext, userText?: string): string {

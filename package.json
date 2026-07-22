@@ -14,7 +14,9 @@
     "verify": "tsx scripts/verify-flows.ts",
     "verify:agent": "tsx scripts/verify-agent-api.ts",
     "verify:ui": "node scripts/verify-ui.mjs",
-    "verify:all": "npm run lint && npm test && npm run verify && npm run verify:agent && npm run build"
+    "verify:all": "npm run lint && npm test && npm run verify && npm run verify:agent && npm run build",
+    "eval:mentor": "tsx scripts/eval/run.ts",
+    "eval:mentor:live": "tsx scripts/eval/run.ts --live"
   },
   "dependencies": {
     "@qoder-ai/qoder-agent-sdk": "^1.0.15",
