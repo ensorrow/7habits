@@ -2,7 +2,7 @@ import SwiftUI
 import SevenHabitsCore
 
 struct DashboardView: View {
-  @Bindable var model: AppModel
+  @ObservedObject var model: AppModel
 
   private var totalRoleHours: Double {
     model.analysis.roleHours.values.reduce(0, +)

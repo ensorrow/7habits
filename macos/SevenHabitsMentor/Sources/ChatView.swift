@@ -2,7 +2,7 @@ import SwiftUI
 import SevenHabitsCore
 
 struct ChatView: View {
-  @Bindable var model: AppModel
+  @ObservedObject var model: AppModel
 
   var body: some View {
     VStack(spacing: 0) {

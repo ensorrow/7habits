@@ -1,11 +1,10 @@
+import Combine
 import Foundation
-import Observation
 import SevenHabitsCore
 import UserNotifications
 
 @MainActor
-@Observable
-final class AppModel {
+final class AppModel: ObservableObject {
   enum Pane: String, CaseIterable, Identifiable {
     case chat, dashboard, settings
     var id: String { rawValue }
@@ -18,46 +17,47 @@ final class AppModel {
     }
   }
 
-  var pane: Pane = .chat
-  var windowVisible = false
+  @Published var pane: Pane = .chat
+  @Published var windowVisible = false
 
-  var messages: [ChatMessage] = []
-  var roles: [Role] = []
-  var mission = MissionDraft()
-  var emotionalAccount = EmotionalAccount()
-  var events: [CalendarEvent] = []
-  var todos: [TodoItem] = []
-  var rocks: [BigRock] = []
-  var promises: [WeeklyPromise] = []
-  var weeklyStats: WeeklyStats?
-  var userAnswers = UserAnswers()
+  @Published var messages: [ChatMessage] = []
+  @Published var roles: [Role] = []
+  @Published var mission = MissionDraft()
+  @Published var emotionalAccount = EmotionalAccount()
+  @Published var events: [CalendarEvent] = []
+  @Published var todos: [TodoItem] = []
+  @Published var rocks: [BigRock] = []
+  @Published var promises: [WeeklyPromise] = []
+  @Published var weeklyStats: WeeklyStats?
+  @Published var userAnswers = UserAnswers()
 
-  var phase: AppPhase = .coldStart
-  var coldStartStep: ColdStartStep = .intro
-  var weeklyReviewAct: WeeklyReviewAct = .prep
-  var weekCount = 0
-  var volume: VolumeSetting = .standard
-  var calendarAuthorized = false
-  var remindersAuthorized = false
+  @Published var phase: AppPhase = .coldStart
+  @Published var coldStartStep: ColdStartStep = .intro
+  @Published var weeklyReviewAct: WeeklyReviewAct = .prep
+  @Published var weekCount = 0
+  @Published var volume: VolumeSetting = .standard
+  @Published var calendarAuthorized = false
+  @Published var remindersAuthorized = false
 
-  var mentorBusy = false
-  var lastMentorSource: String?
-  var lastMentorError: String?
-  var agentReachable = false
-  var agentStatus: MentorAgentStatus?
+  @Published var mentorBusy = false
+  @Published var lastMentorSource: String?
+  @Published var lastMentorError: String?
+  @Published var agentReachable = false
+  @Published var agentStatus: MentorAgentStatus?
 
-  var menubarBadge = false
-  var pendingInterventionMessage: String?
-  var draft = ""
+  @Published var menubarBadge = false
+  @Published var pendingInterventionMessage: String?
+  @Published var draft = ""
 
   private let calendarStore: any CalendarProviding
   private let api: MentorAPIClient
 
   init(
-    calendarStore: any CalendarProviding = EventKitCalendarStore(),
+    calendarStore: (any CalendarProviding)? = nil,
     api: MentorAPIClient = MentorAPIClient()
   ) {
-    self.calendarStore = calendarStore
+    // Construct EventKit store inside MainActor init (not as a default arg).
+    self.calendarStore = calendarStore ?? EventKitCalendarStore()
     self.api = api
   }
 

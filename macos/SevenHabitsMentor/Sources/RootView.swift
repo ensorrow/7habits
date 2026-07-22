@@ -2,7 +2,7 @@ import SwiftUI
 import SevenHabitsCore
 
 struct RootView: View {
-  @Bindable var model: AppModel
+  @ObservedObject var model: AppModel
 
   var body: some View {
     VStack(spacing: 0) {
@@ -43,7 +43,7 @@ struct RootView: View {
 }
 
 struct HeaderBar: View {
-  @Bindable var model: AppModel
+  @ObservedObject var model: AppModel
 
   var body: some View {
     HStack(spacing: 16) {

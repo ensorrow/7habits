@@ -3,7 +3,7 @@ import SwiftUI
 import SevenHabitsCore
 
 struct MenuBarPanel: View {
-  @Bindable var model: AppModel
+  @ObservedObject var model: AppModel
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {

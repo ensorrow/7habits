@@ -3,7 +3,6 @@ import Foundation
 import SevenHabitsCore
 
 /// EventKit-backed calendar source — the macOS side of the `calendar.ts` seam.
-@MainActor
 public final class EventKitCalendarStore: CalendarProviding, @unchecked Sendable {
   private let store = EKEventStore()
   private let defaultsKey = "sevenhabits.defaultCalendarId"
