@@ -124,6 +124,20 @@ async function ensureMentorAgent(token: string): Promise<string> {
   );
   const existing = listed.data?.find((a) => a.name === MENTOR_CLOUD_AGENT_NAME && a.id);
   if (existing?.id) {
+    const detail = await cloudFetch<{ id?: string; version?: number; system?: string }>(
+      token,
+      'GET',
+      `/agents/${existing.id}`,
+    );
+    if (detail.system !== MENTOR_AGENT_PROMPT && detail.version != null) {
+      await cloudFetch(token, 'POST', `/agents/${existing.id}`, {
+        version: detail.version,
+        name: MENTOR_CLOUD_AGENT_NAME,
+        model: QODER_MODEL,
+        description: '7习惯导师表达层（结构决策在本地，云端仅润色话术）',
+        system: MENTOR_AGENT_PROMPT,
+      });
+    }
     cachedAgentId = existing.id;
     return existing.id;
   }

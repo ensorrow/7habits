@@ -52,6 +52,7 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - Verify (mentor agent API): `npm run verify:agent` (requires `npm run agent`).
 - Verify (browser UI, screenshots): `npm run verify:ui` (Playwright → `/opt/cursor/artifacts/screenshots`).
 - Verify (L1 + agent API + build): `npm run verify:all` (start agent first for `verify:agent`).
+- Eval mentor phrasing (prompt iteration): `npm run eval:mentor` (local) / `npm run eval:mentor:live` (needs agent + PAT). See `scripts/eval/README.md`.
 
 ### Non-obvious notes
 
