@@ -370,6 +370,12 @@ public struct MentorAgentStatus: Codable, Sendable {
   public var available: Bool
   public var authMode: String?
   public var reason: String?
+
+  public init(available: Bool, authMode: String? = nil, reason: String? = nil) {
+    self.available = available
+    self.authMode = authMode
+    self.reason = reason
+  }
 }
 
 public struct CalendarAnalysis: Sendable {
@@ -379,4 +385,20 @@ public struct CalendarAnalysis: Sendable {
   public var weekdayHours: Double
   public var roleHours: [String: Double]
   public var observation: String
+
+  public init(
+    totalMeetings: Int,
+    lateNightCount: Int,
+    weekendHours: Double,
+    weekdayHours: Double,
+    roleHours: [String: Double],
+    observation: String
+  ) {
+    self.totalMeetings = totalMeetings
+    self.lateNightCount = lateNightCount
+    self.weekendHours = weekendHours
+    self.weekdayHours = weekdayHours
+    self.roleHours = roleHours
+    self.observation = observation
+  }
 }
