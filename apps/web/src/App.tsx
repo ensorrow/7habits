@@ -6,6 +6,8 @@ import {
   type RoleAllocation,
   buildSampleData,
   computeRoleAllocations,
+  eventMinutes,
+  eventsInWindow,
   lastTwoWeeks,
 } from "@7habits/core";
 import { useCallback, useMemo, useState } from "react";
@@ -21,7 +23,14 @@ const NOW = new Date();
 
 export function App() {
   const { mission } = useMemo(() => buildSampleData(NOW), []);
+  // Actuals: the past two weeks. The mentor confronts on this window.
   const window = useMemo(() => lastTwoWeeks(NOW), []);
+  // Plan: the coming week, where big rocks get scheduled.
+  const planWindow = useMemo(() => {
+    const end = new Date(NOW);
+    end.setDate(NOW.getDate() + 7);
+    return { start: NOW, end };
+  }, []);
 
   const [events, setEvents] = useState<CalendarEvent[]>(() => buildSampleData(NOW).events);
   const [chat, setChat] = useState<ChatLine[]>([
@@ -42,6 +51,16 @@ export function App() {
     () => computeRoleAllocations(events, mission, window),
     [events, mission, window],
   );
+
+  // Minutes of big rocks already scheduled into the coming week, per role.
+  const plannedMinutes: Record<string, number> = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const e of eventsInWindow(events, planWindow)) {
+      if (!e.roleId) continue;
+      map[e.roleId] = (map[e.roleId] ?? 0) + eventMinutes(e);
+    }
+    return map;
+  }, [events, planWindow]);
 
   const pushObservation = useCallback((obs: MentorObservation) => {
     setChat((prev) => [
@@ -162,6 +181,7 @@ export function App() {
           <div className="roles" data-testid="dashboard">
             {allocations.map((a) => {
               const neglected = a.gap >= 0.1;
+              const planned = plannedMinutes[a.roleId] ?? 0;
               return (
                 <div className="role" key={a.roleId} data-role={a.roleId}>
                   <div className="role-head">
@@ -178,9 +198,14 @@ export function App() {
                     <div className="bar-target" style={{ left: `${a.targetShare * 100}%` }} />
                   </div>
                   <div className="role-minutes">
-                    本周期 {Math.floor(a.minutes / 60)} 小时 {a.minutes % 60} 分钟
+                    过去两周 {Math.floor(a.minutes / 60)} 小时 {a.minutes % 60} 分钟
                     {neglected ? " · 长期饥饿" : ""}
                   </div>
+                  {planned > 0 ? (
+                    <div className="role-planned" data-testid={`planned-${a.roleId}`}>
+                      ＋ 下周已排大石头 {planned} 分钟
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

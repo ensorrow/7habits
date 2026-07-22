@@ -38,7 +38,7 @@ Then drive it with computer use. The playground exposes stable `data-testid` hoo
 1. Open `http://localhost:5173`.
 2. Click **让导师看我的日历（冷启动）** → mentor prints an observation citing calendar counts.
 3. Click **开始周回顾（回顾-对质）** → mentor confronts: "你说「健康」重要……过去 2 周投入是零" and the dashboard shows 健康 at 0%/25%.
-4. Click **给「健康」排一块大石头** → dashboard's 健康 bar grows and the mentor acknowledges the commitment.
+4. Click **给「健康」排一块大石头** → the mentor records the commitment and the 健康 dashboard row shows a green "＋ 下周已排大石头 30 分钟" planned badge (`data-testid="planned-health"`). Actual (past-two-week) minutes intentionally stay 0 — a future big rock is *plan*, not *actual*, which is the plan-vs-actual distinction the product cares about.
 
 This exercises the real value proposition (data → confrontation → scheduling), all in the browser on Linux.
 
