@@ -5,21 +5,24 @@ Use this when validating the native macOS shell (menu-bar app, conversation wind
 ## Why it can't run in Cursor Cloud
 
 - Cursor Cloud VMs are Ubuntu Linux; `swift`/`xcodebuild` are not installed and Apple frameworks (EventKit, AppKit/SwiftUI, UserNotifications) are macOS-only.
-- Therefore L3 must be validated on a macOS machine or macOS CI runner (e.g. GitHub Actions `macos-latest`).
+- Therefore L3 must be validated on a macOS machine or a macOS CI runner (e.g. GitHub Actions `macos-latest`).
 
-## Design rule that keeps L3 unblocking L1/L2
+## The seam that keeps L3 from blocking L1/L2
 
-Keep all macOS-only code behind the `CalendarSource` port defined in `packages/core/src/types.ts`:
+The web prototype gets calendar data from a single injected source:
 
 ```
-interface CalendarSource { listEvents(window): Promise<CalendarEvent[]> }
+// src/services/calendar.ts
+export function generateMockCalendar(now = new Date()): CalendarEvent[] { ... }
 ```
 
-- The macOS shell implements this with an **EventKit adapter** (`EKEventStore` → `CalendarEvent[]`), plus a `writeEvent` capability for scheduling "big rocks".
-- The mentor decision logic stays in `@7habits/core`, unchanged across platforms.
-- Two integration options for reusing the core from Swift:
-  1. Run the core as a local agent service (Node) and have the Swift shell call it over localhost; or
-  2. Port/mirror the core in Swift as a Swift package and keep this TS core as the executable reference/spec that L1 tests pin down.
+All mentor logic consumes `CalendarEvent[]` (see `src/types/index.ts`) and never talks to a platform API directly. To reach the macOS product:
+
+- Replace/augment the mock source with an **EventKit-backed loader** (`EKEventStore` → `CalendarEvent[]`), plus a write path for scheduling "big rocks" back into the real Calendar.
+- Keep the mentor decision logic (`src/services/mentor.ts`, `interventions.ts`, `language.ts`, `emotionalAccount.ts`) unchanged and platform-agnostic.
+- Two integration options for reusing that logic from a Swift shell:
+  1. Run the logic as a local agent service (Node) that the Swift app calls over localhost; or
+  2. Port/mirror it into a Swift package, treating this TS code + its tests as the executable spec.
 
 ## How to validate L3 (on macOS)
 
@@ -30,5 +33,5 @@ interface CalendarSource { listEvents(window): Promise<CalendarEvent[]> }
 
 ## What a Cursor Cloud (Linux) agent should do for L3 work
 
-- You can still **edit** Swift/L3 source and reason about it here, but do not attempt to build/run it locally.
-- Validate the shared logic at L1/L2 (see `agent-browser-validation.md`) and hand the native build/run off to macOS/macOS CI. State this clearly instead of claiming a Linux run of the macOS app.
+- You can still **edit** and reason about Swift/L3 source here, but do not attempt to build/run it locally.
+- Validate the shared logic at L1/L2 (see `agent-browser-validation.md`) and hand the native build/run to macOS/macOS CI. State this explicitly instead of claiming a Linux run of the macOS app.

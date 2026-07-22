@@ -1,48 +1,58 @@
 # Skill: agent-browser validation (L1 + L2)
 
-Use this when validating the mentor agent's behavior in Cursor Cloud / any Linux dev box, without a macOS device. This covers the platform-agnostic core (L1) and the browser Mentor Playground (L2).
+Use this when validating the mentor's behavior in Cursor Cloud / any Linux dev box without a macOS device. Covers the platform-agnostic logic (L1, `src/services`) and the browser prototype (L2, the React app).
 
 ## When to use
 
-- You changed anything in `packages/core` (mentor logic, roles/mission, weekly review, interventions) or `apps/web`.
-- You want to demonstrate agent behavior end-to-end with a browser (screenshots / video via computer use).
+- You changed anything in `src/services/*`, `src/types`, `src/store.ts`, or `src/App.tsx`.
+- You want to demonstrate agent behavior end-to-end in a browser (screenshots / video).
+
+## Setup
+
+Package manager is **npm**.
+
+```
+npm install                     # deps (also the startup update script)
+npx playwright install chromium # once per environment, only needed for verify:ui
+```
 
 ## Headless first (L1)
 
-Fastest signal, no browser needed:
+Fastest signal, no browser:
 
 ```
-pnpm install        # once per environment
-pnpm lint
-pnpm typecheck
-pnpm test           # core unit tests (vitest)
+npm run lint    # oxlint
+npm test        # Vitest — includes src/services/mentor.test.ts
+npm run verify  # tsx scripts/verify-flows.ts — exercises the mentor flows in Node
 ```
 
-Add/extend tests in `packages/core/test/*.test.ts`. The core depends only on the `CalendarSource` port, so inject `InMemoryCalendarSource` (from `@7habits/core`) with a fixed `new Date(...)` anchor for determinism.
+Add/extend logic tests next to the code (e.g. `src/services/*.test.ts`). Calendar data is injected via `generateMockCalendar()` in `src/services/calendar.ts`, so tests stay deterministic without any real calendar.
 
-## Browser harness (L2)
+## Browser prototype (L2)
+
+Interactive dev:
 
 ```
-pnpm dev            # Vite dev server on http://localhost:5173 (host 0.0.0.0)
+npm run dev     # Vite dev server on http://localhost:5173
 ```
 
-Then drive it with computer use. The playground exposes stable `data-testid` hooks:
+Then drive it manually (computer use) through the core flow:
+1. Cold start — agree to share the calendar; the mentor states a data-grounded observation.
+2. Answer the 3 extraction questions → confirm the role draft.
+3. Open 角色仪表盘 (role dashboard) — see time-per-role vs mission (健康/health ≈ 0%).
+4. Run the weekly review — the mentor confronts the neglected role and schedules a "big rock".
 
-- `cold-start` — button: mentor states a data-grounded observation about the last 2 weeks.
-- `weekly-review` — button: mentor runs the weekly-review briefing and confronts the biggest declaration/behavior gap (the neglected "健康/health" role).
-- `schedule-rock` — button: schedule a "big rock" for the neglected role; the dashboard updates and the mentor records the commitment.
-- `chat` — the conversation log; `dashboard` — the role-projection panel; each role row has `data-role="<roleId>"`.
+Automated browser check (headless, produces screenshots):
 
-### Suggested hello-world flow (core functionality)
+```
+npm run build
+npm run preview                                  # serves http://localhost:4173
+APP_URL=http://localhost:4173 npm run verify:ui  # Playwright → /opt/cursor/artifacts/screenshots
+```
 
-1. Open `http://localhost:5173`.
-2. Click **让导师看我的日历（冷启动）** → mentor prints an observation citing calendar counts.
-3. Click **开始周回顾（回顾-对质）** → mentor confronts: "你说「健康」重要……过去 2 周投入是零" and the dashboard shows 健康 at 0%/25%.
-4. Click **给「健康」排一块大石头** → the mentor records the commitment and the 健康 dashboard row shows a green "＋ 下周已排大石头 30 分钟" planned badge (`data-testid="planned-health"`). Actual (past-two-week) minutes intentionally stay 0 — a future big rock is *plan*, not *actual*, which is the plan-vs-actual distinction the product cares about.
-
-This exercises the real value proposition (data → confrontation → scheduling), all in the browser on Linux.
+The `APP_URL` override is required: `verify:ui` defaults to `127.0.0.1:4173`, but `vite preview` binds to `localhost` (IPv6), so the IPv4 default is refused. `verify:ui` walks the full cold-start → dashboard → weekly-review → P0-intervention flow and asserts brand/insight/roles are present.
 
 ## Notes
 
-- No API keys/secrets are required — observations are deterministic.
-- Core is consumed as TS source, so core edits hot-reload in the browser without a separate build.
+- No API keys/secrets required — mentor observations are deterministic.
+- Screenshots for artifacts land in `/opt/cursor/artifacts/screenshots`.

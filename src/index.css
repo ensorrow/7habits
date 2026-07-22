@@ -1,0 +1,58 @@
+:root {
+  --ink: #0f1f1a;
+  --ink-soft: #1a3229;
+  --panel: rgba(18, 42, 34, 0.82);
+  --panel-solid: #142820;
+  --line: rgba(196, 165, 116, 0.22);
+  --brass: #c4a574;
+  --brass-bright: #e0c48a;
+  --mist: #d6e0d9;
+  --mist-dim: #9aada3;
+  --danger: #c46b5a;
+  --ok: #6fae8c;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Source Sans 3', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  --radius: 14px;
+  color: var(--mist);
+  background: var(--ink);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(47, 111, 94, 0.35), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(184, 107, 58, 0.18), transparent 55%),
+    linear-gradient(165deg, #0c1814 0%, #13261f 45%, #0f1a16 100%);
+  background-attachment: fixed;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(196, 165, 116, 0.35);
+}

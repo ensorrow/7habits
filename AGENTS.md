@@ -2,42 +2,54 @@
 
 ## Project overview
 
-**7 Habits Mentor Agent (7习惯导师 Agent)** — a value-driven mentor (not an assistant) built around Stephen Covey's *7 Habits*. Product vision and behavior live in `REQUIREMENTS.md` (Chinese). The end product is a **macOS-native app** (menu-bar + conversation window) that reads/writes the system Calendar & Reminders via **EventKit**.
+**7 习惯导师 Agent (Seven Habits Mentor)** — a value-driven mentor (not an assistant) based on Stephen Covey's *7 Habits*. Product vision and behavior live in `REQUIREMENTS.md` (Chinese). The end goal is a **macOS-native app** (menu-bar + conversation window) that reads/writes the system Calendar & Reminders via **EventKit**.
 
-To make the product testable in ordinary (Linux/CI) environments while keeping the native app, the code is organized for **layered validation** (hexagonal / ports-and-adapters):
+The current codebase is the **MVP web prototype** of that product: a single-package Vite + React app that simulates the menu-bar + conversation window + role dashboard, with **mock** calendar data and an architecture that reserves a seam for future EventKit / macOS-native integration.
 
-| Layer | What | Where it runs | How it's validated |
-|-------|------|---------------|--------------------|
-| **L1 – Agent core** (`packages/core`) | Platform-agnostic mentor logic: role/mission model, weekly-review projection, "declaration vs behavior" observations, intervention budget/priority. Depends only on the `CalendarSource` port. | Anywhere (Node/browser) | Headless unit tests (`pnpm test`) |
-| **L2 – Browser harness** (`apps/web`) | "Mentor Playground": a React app wiring the core to an in-memory `CalendarSource`. This is the **agent-browser** validation surface. | Linux / Cursor Cloud | Dev server + browser (computer use) |
-| **L3 – macOS shell** (not yet built) | SwiftUI menu-bar app + EventKit adapter implementing `CalendarSource`. | **macOS only** | macOS / macOS CI (see skill) |
+### Layout (single package at repo root)
 
-The key seam is the `CalendarSource` port in `packages/core/src/types.ts`: the browser and tests inject a mock; the macOS shell will inject an EventKit-backed adapter. Same mentor logic, three validation surfaces.
+- `src/App.tsx`, `src/main.tsx`, `src/store.ts` — UI + Zustand store.
+- `src/types/index.ts` — domain types (`Role`, `CalendarEvent`, `EmotionalAccount`, intervention types, cold-start / weekly-review phases…).
+- `src/services/` — platform-agnostic mentor logic:
+  - `calendar.ts` — **the mock-data seam**: `generateMockCalendar()` produces `CalendarEvent[]`. This is where a real EventKit-backed source would plug in for macOS.
+  - `mentor.ts` (+ `mentor.test.ts`), `interventions.ts`, `language.ts`, `emotionalAccount.ts`.
+- `scripts/verify-flows.ts` (`npm run verify`) and `scripts/verify-ui.mjs` (`npm run verify:ui`) — automated verification.
+
+## Layered validation
+
+Because the eventual product is a macOS app but most logic is platform-agnostic, validate in layers:
+
+| Layer | What | Runs | Validated by |
+|-------|------|------|--------------|
+| **L1 – logic** (`src/services/*`, `src/types`) | mentor observations, weekly-review projection, interventions, language/emotional-account | anywhere (Node) | `npm test` (Vitest) |
+| **L2 – web UI** (`src/App.tsx` + store, mock `calendar.ts`) | the browser prototype — the **agent-browser** surface | Linux / Cursor Cloud | `npm run dev` + browser; headless `npm run verify:ui` (Playwright) |
+| **L3 – macOS shell** (not built) | SwiftUI menu-bar + EventKit adapter replacing the `calendar.ts` mock | **macOS only** | macOS / macOS CI |
+
+The seam that makes this work is calendar data being **injected** (currently `generateMockCalendar`). Keep macOS-only code behind that seam so L1/L2 stay validatable here. Details: `.cursor/skills/agent-browser-validation.md` and `.cursor/skills/macos-layered-validation.md`.
 
 ## Cursor Cloud specific instructions
 
 ### What runs here (Linux) and what does not
 
-- **L1 (core) and L2 (web) run fully in Cursor Cloud** and are the intended validation targets here.
-- **L3 (macOS app) cannot build or run in Cursor Cloud.** The VM is Ubuntu Linux; `swift`/`xcodebuild` and EventKit are macOS-only. Validate L3 on macOS/macOS CI. See `.cursor/skills/macos-layered-validation.md`.
-- Keep macOS-only code isolated behind the `CalendarSource` port so it never blocks L1/L2 validation here.
+- **L1 (logic) and L2 (web) run fully in Cursor Cloud** and are the validation targets here.
+- **L3 (macOS app) cannot build or run in Cursor Cloud.** The VM is Ubuntu Linux; `swift`/`xcodebuild` and EventKit are macOS-only. Validate L3 on macOS/macOS CI.
 
-### Commands (run from repo root)
+### Commands (npm; run from repo root)
 
-Standard scripts are defined in the root `package.json`; prefer them over ad-hoc commands.
+Package manager is **npm** (`package-lock.json`). Standard scripts are in `package.json`:
 
-- Install: `pnpm install` (also the update script; pnpm is the package manager — `pnpm-lock.yaml`).
-- Lint/format: `pnpm lint` (Biome) · autofix with `pnpm lint:fix`.
-- Typecheck: `pnpm typecheck`.
-- Test (core, headless): `pnpm test`.
-- Build all: `pnpm build`.
-- Run the playground (dev): `pnpm dev` → Vite on `http://localhost:5173` (bound to `0.0.0.0`).
+- Install: `npm install` (also the update script).
+- Dev server: `npm run dev` → Vite on `http://localhost:5173`.
+- Lint: `npm run lint` (oxlint).
+- Test: `npm test` (Vitest, headless).
+- Build: `npm run build` (`tsc -b && vite build`).
+- Preview built app: `npm run preview` → `http://localhost:4173`.
+- Verify (logic flows): `npm run verify` (tsx).
+- Verify (browser UI, screenshots): `npm run verify:ui` (Playwright → `/opt/cursor/artifacts/screenshots`).
 
 ### Non-obvious notes
 
-- `@7habits/core` is consumed as **TypeScript source** (its package `exports` points at `src/index.ts`); Vite/Vitest transpile it. So the web app does **not** require a prior `pnpm --filter @7habits/core build` during dev — edits to core hot-reload in the browser.
-- pnpm blocks dependency build scripts by default. The needed ones (`esbuild`, `@biomejs/biome`) are pre-approved via `pnpm.onlyBuiltDependencies` in the root `package.json`; if you add deps with install scripts, add them there rather than running the interactive `pnpm approve-builds`.
-- The mentor's observations are **deterministic and evidence-grounded by design** (no LLM/API key required to validate behavior). An LLM can later phrase observations; do not make core logic depend on it, or L1/L2 validation will start needing secrets.
-- `packages/core/src/sampleData.ts` is intentionally shaped so the "健康/health" role is declared important but has **zero** calendar time — that is what triggers the flagship confrontation and the demo flow. Changing those fixtures may change what the mentor says in tests and the playground.
-
-For browser validation steps, see `.cursor/skills/agent-browser-validation.md`.
+- **`verify:ui` host gotcha**: the script defaults to `APP_URL=http://127.0.0.1:4173`, but `vite preview` binds to `localhost` (IPv6 `::1`), so `127.0.0.1` (IPv4) refuses the connection. Run it as `APP_URL=http://localhost:4173 npm run verify:ui` (with `npm run preview` already running), or start preview with an explicit host.
+- **Playwright browser**: `npm run verify:ui` needs a browser binary. Run `npx playwright install chromium` once (not part of the update script). This step is not needed for `npm test` or the dev server.
+- Mock calendar (`src/services/calendar.ts`) is deliberately shaped so the "健康/health" role gets ~zero time — that is what drives the flagship "宣言 vs 行为" confrontation in the UI and in `mentor.test.ts`.
+- Mentor logic is deterministic and needs no LLM/API key to validate. If an LLM is added later to phrase utterances, keep it out of the core decision logic so L1/L2 validation stays key-free.
