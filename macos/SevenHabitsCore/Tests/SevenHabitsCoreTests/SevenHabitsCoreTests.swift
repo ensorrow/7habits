@@ -4,9 +4,17 @@ import XCTest
 
 final class EventClassifierTests: XCTestCase {
   func testHealthKeywords() {
-    let result = EventClassifier.classify(title: "晨跑 5km")
-    XCTAssertEqual(result.roleId, "health")
-    XCTAssertEqual(result.category, .health)
+    let morningRun = EventClassifier.classify(title: "晨跑 5km")
+    XCTAssertEqual(morningRun.roleId, "health")
+    XCTAssertEqual(morningRun.category, .health)
+
+    let englishRun = EventClassifier.classify(title: "Morning run")
+    XCTAssertEqual(englishRun.roleId, "health")
+    XCTAssertEqual(englishRun.category, .health)
+
+    // Substring "run" inside unrelated words must not match.
+    let brunch = EventClassifier.classify(title: "Team brunch")
+    XCTAssertNotEqual(brunch.category, .health)
   }
 
   func testFamilyKeywords() {

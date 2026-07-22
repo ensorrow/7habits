@@ -42,8 +42,9 @@ public enum EventClassifier {
   public static func classify(title: String) -> (roleId: String?, category: EventCategory) {
     let t = title.lowercased()
 
-    let healthKeys = ["跑步", "健身", "游泳", "瑜伽", "运动", "体检", "gym", "run", "workout", "health"]
-    if healthKeys.contains(where: { t.contains($0) }) {
+    // Include short forms like 「晨跑」— not only the full word 「跑步」.
+    let healthKeys = ["跑步", "晨跑", "跑", "健身", "游泳", "瑜伽", "运动", "体检", "gym", "jog", "workout", "health"]
+    if healthKeys.contains(where: { t.contains($0) }) || containsToken(t, "run") {
       return ("health", .health)
     }
 
@@ -68,6 +69,12 @@ public enum EventClassifier {
     }
 
     return ("engineer", .other)
+  }
+
+  /// Whole-token match so `"run"` does not hit `"brunch"` / `"runtime"`.
+  private static func containsToken(_ haystack: String, _ token: String) -> Bool {
+    let separators = CharacterSet.alphanumerics.inverted
+    return haystack.components(separatedBy: separators).contains(token)
   }
 }
 

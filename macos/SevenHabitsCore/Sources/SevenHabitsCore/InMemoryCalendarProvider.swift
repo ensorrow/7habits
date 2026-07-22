@@ -1,8 +1,8 @@
 import Foundation
 
 /// Test double / preview fallback that implements the calendar seam without EventKit.
+/// Not intended for concurrent mutation; use from a single task / main actor.
 public final class InMemoryCalendarProvider: CalendarProviding, @unchecked Sendable {
-  private let lock = NSLock()
   private var authorized = false
   private var events: [CalendarEvent] = []
   private var reminders: [TodoItem] = []
@@ -13,19 +13,15 @@ public final class InMemoryCalendarProvider: CalendarProviding, @unchecked Senda
   }
 
   public var isAuthorized: Bool {
-    get async {
-      lock.lock(); defer { lock.unlock() }
-      return authorized
-    }
+    get async { authorized }
   }
 
   public func requestAccess() async throws -> Bool {
-    lock.lock(); authorized = true; lock.unlock()
+    authorized = true
     return true
   }
 
   public func loadEvents(from start: Date, to end: Date) async throws -> [CalendarEvent] {
-    lock.lock(); defer { lock.unlock() }
     guard authorized else { throw CalendarAccessError.denied }
     return events.filter { event in
       guard let s = ISO8601.date(from: event.start), let e = ISO8601.date(from: event.end) else {
@@ -36,7 +32,6 @@ public final class InMemoryCalendarProvider: CalendarProviding, @unchecked Senda
   }
 
   public func loadReminders() async throws -> [TodoItem] {
-    lock.lock(); defer { lock.unlock() }
     guard authorized else { throw CalendarAccessError.denied }
     return reminders
   }
@@ -49,7 +44,6 @@ public final class InMemoryCalendarProvider: CalendarProviding, @unchecked Senda
     notes: String?,
     isBigRock: Bool
   ) async throws -> CalendarEvent {
-    lock.lock(); defer { lock.unlock() }
     guard authorized else { throw CalendarAccessError.denied }
     let classified = EventClassifier.classify(title: title)
     let event = CalendarEvent(
@@ -67,6 +61,6 @@ public final class InMemoryCalendarProvider: CalendarProviding, @unchecked Senda
   }
 
   public func seed(_ newEvents: [CalendarEvent]) {
-    lock.lock(); events = newEvents; lock.unlock()
+    events = newEvents
   }
 }
