@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleDisplayName</key>
+	<string>7习惯导师</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>7习惯导师</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>我是你的导师，不是助手。要做到这点，我需要看你的日历——时间花在哪，价值观就在哪。</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>我是你的导师，不是助手。要做到这点，我需要看你的日历——时间花在哪，价值观就在哪。</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>查看提醒事项中被反复推迟的事，帮助你看见第二象限的模式。</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>查看提醒事项中被反复推迟的事，帮助你看见第二象限的模式。</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>仅在承诺保卫等值得打断的时刻通知你。</string>
+</dict>
+</plist>

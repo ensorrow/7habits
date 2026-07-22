@@ -1,0 +1,312 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* SevenHabitsMentorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* SevenHabitsMentorApp.swift */; };
+		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AppModel.swift */; };
+		A10000000000000000000003 /* EventKitCalendarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* EventKitCalendarStore.swift */; };
+		A10000000000000000000004 /* MenuBarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* MenuBarPanel.swift */; };
+		A10000000000000000000005 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* RootView.swift */; };
+		A10000000000000000000006 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* ChatView.swift */; };
+		A10000000000000000000007 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* DashboardView.swift */; };
+		A10000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* SettingsView.swift */; };
+		A10000000000000000000009 /* SevenHabitsCore in Frameworks */ = {isa = PBXBuildFile; productRef = A50000000000000000000001 /* SevenHabitsCore */; };
+		A1000000000000000000000A /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* EventKit.framework */; };
+		A1000000000000000000000B /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* UserNotifications.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* SevenHabitsMentorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SevenHabitsMentorApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* EventKitCalendarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* MenuBarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPanel.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000000000000000000000C /* SevenHabitsMentor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SevenHabitsMentor.entitlements; sourceTree = "<group>"; };
+		A2000000000000000000000A /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
+		A2000000000000000000000B /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		A2000000000000000000000D /* SevenHabitsMentor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SevenHabitsMentor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000009 /* SevenHabitsCore in Frameworks */,
+				A1000000000000000000000A /* EventKit.framework in Frameworks */,
+				A1000000000000000000000B /* UserNotifications.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* SevenHabitsMentor */,
+				A40000000000000000000003 /* Frameworks */,
+				A40000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* SevenHabitsMentor */ = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000005 /* Sources */,
+				A40000000000000000000006 /* Resources */,
+			);
+			path = SevenHabitsMentor;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000000A /* EventKit.framework */,
+				A2000000000000000000000B /* UserNotifications.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000000D /* SevenHabitsMentor.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000005 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* SevenHabitsMentorApp.swift */,
+				A20000000000000000000002 /* AppModel.swift */,
+				A20000000000000000000003 /* EventKitCalendarStore.swift */,
+				A20000000000000000000004 /* MenuBarPanel.swift */,
+				A20000000000000000000005 /* RootView.swift */,
+				A20000000000000000000006 /* ChatView.swift */,
+				A20000000000000000000007 /* DashboardView.swift */,
+				A20000000000000000000008 /* SettingsView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000006 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000009 /* Info.plist */,
+				A2000000000000000000000C /* SevenHabitsMentor.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A60000000000000000000001 /* SevenHabitsMentor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A80000000000000000000003 /* Build configuration list for PBXNativeTarget "SevenHabitsMentor" */;
+			buildPhases = (
+				A70000000000000000000001 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A70000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SevenHabitsMentor;
+			packageProductDependencies = (
+				A50000000000000000000001 /* SevenHabitsCore */,
+			);
+			productName = SevenHabitsMentor;
+			productReference = A2000000000000000000000D /* SevenHabitsMentor.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A90000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					A60000000000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXProject "SevenHabitsMentor" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = A40000000000000000000001;
+			packageReferences = (
+				A50000000000000000000002 /* XCLocalSwiftPackageReference "SevenHabitsCore" */,
+			);
+			productRefGroup = A40000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A60000000000000000000001 /* SevenHabitsMentor */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A70000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A70000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* SevenHabitsMentorApp.swift in Sources */,
+				A10000000000000000000002 /* AppModel.swift in Sources */,
+				A10000000000000000000003 /* EventKitCalendarStore.swift in Sources */,
+				A10000000000000000000004 /* MenuBarPanel.swift in Sources */,
+				A10000000000000000000005 /* RootView.swift in Sources */,
+				A10000000000000000000006 /* ChatView.swift in Sources */,
+				A10000000000000000000007 /* DashboardView.swift in Sources */,
+				A10000000000000000000008 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A80000000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_DYNAMIC_NO_PIC = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A80000000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A80000000000000000000021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SevenHabitsMentor/Resources/SevenHabitsMentor.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SevenHabitsMentor/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sevenhabits.mentor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A80000000000000000000022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SevenHabitsMentor/Resources/SevenHabitsMentor.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SevenHabitsMentor/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sevenhabits.mentor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A80000000000000000000001 /* Build configuration list for PBXProject "SevenHabitsMentor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000011 /* Debug */,
+				A80000000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A80000000000000000000003 /* Build configuration list for PBXNativeTarget "SevenHabitsMentor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000021 /* Debug */,
+				A80000000000000000000022 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A50000000000000000000002 /* XCLocalSwiftPackageReference "SevenHabitsCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SevenHabitsCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A50000000000000000000001 /* SevenHabitsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SevenHabitsCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A90000000000000000000001 /* Project object */;
+}

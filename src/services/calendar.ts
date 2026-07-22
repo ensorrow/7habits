@@ -9,7 +9,15 @@ const ROLE_COLORS = {
   learner: '#6B7A4A',
 };
 
-/** Mock past 4 weeks of calendar — dense meetings, late nights, empty weekends */
+/**
+ * Calendar data seam for the mentor stack.
+ *
+ * - **L2 (web MVP):** this mock generator — dense meetings, late nights, empty weekends,
+ *   health ≈ 0 (drives 宣言 vs 行为).
+ * - **L3 (macOS):** `macos/SevenHabitsMentor/.../EventKitCalendarStore.swift` loads the same
+ *   `CalendarEvent` shape from EventKit and writes big rocks back. Mentor logic never talks
+ *   to EventKit directly; it only consumes `CalendarEvent[]`.
+ */
 export function generateMockCalendar(now = new Date()): CalendarEvent[] {
   const events: CalendarEvent[] = [];
   let id = 1;

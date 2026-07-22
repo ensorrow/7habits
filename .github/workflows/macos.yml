@@ -1,0 +1,39 @@
+name: macOS L3
+
+on:
+  push:
+    paths:
+      - 'macos/**'
+      - '.github/workflows/macos.yml'
+  pull_request:
+    paths:
+      - 'macos/**'
+      - '.github/workflows/macos.yml'
+
+jobs:
+  seven-habits-core:
+    name: Swift package tests
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: macos/SevenHabitsCore
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        run: swift test
+
+  app-build:
+    name: Xcode build (no sign)
+    runs-on: macos-14
+    needs: seven-habits-core
+    steps:
+      - uses: actions/checkout@v4
+      - name: xcodebuild
+        run: |
+          xcodebuild \
+            -project macos/SevenHabitsMentor.xcodeproj \
+            -scheme SevenHabitsMentor \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
