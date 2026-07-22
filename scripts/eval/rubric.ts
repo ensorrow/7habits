@@ -158,7 +158,9 @@ export function scoreSpeech(
 
   // Brief anchor: at least one contentful token from brief appears in speech.
   const briefTokens = brief.content
-    .replace(/[，。！？、：；“”‘’「」『』（）()[\]【】\s…·]/g, ' ')
+    .replace(/[，。！？、：；“”‘’「」『』（）()\s…·]/g, ' ')
+    .replace(/[[\]]/g, ' ')
+    .replace(/[【】]/g, ' ')
     .split(' ')
     .map((t) => t.trim())
     .filter((t) => t.length >= 2)
