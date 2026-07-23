@@ -50,4 +50,22 @@ xcodebuild -project macos/SevenHabitsMentor.xcodeproj \
   build
 ```
 
-> Cursor Cloud / Linux **无法**编译或运行本层（无 Swift/EventKit）。L1/L2 仍在 Linux 验证。
+## GitHub 打包（Actions 产物）
+
+CI（`.github/workflows/macos.yml`）在 macOS runner 上会额外打出 **Release `.app` zip** 并上传 Artifact：
+
+1. 打开仓库 → **Actions** → **macOS L3**
+2. 选一次成功的 run → **Artifacts** → 下载 `SevenHabitsMentor-macos-*.zip`
+3. 解压得到 `SevenHabitsMentor.app`
+
+也可手动触发：**Actions → macOS L3 → Run workflow**。勾选 *Also publish a GitHub Release* 会同时发到 Releases（无 Apple Developer 证书，**ad-hoc 签名、未公证**）。
+
+本机首次打开若被 Gatekeeper 拦：右键 →「打开」，或：
+
+```bash
+xattr -dr com.apple.quarantine SevenHabitsMentor.app
+```
+
+菜单栏 App 仍依赖本机导师 API：仓库根目录 `npm run agent`（默认 `http://127.0.0.1:8787`）。
+
+> Cursor Cloud / Linux **无法**编译或运行本层（无 Swift/EventKit）。L1/L2 仍在 Linux 验证；L3 包由 GitHub Actions 的 `macos-14` runner 产出。
