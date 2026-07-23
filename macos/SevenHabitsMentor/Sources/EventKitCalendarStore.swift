@@ -117,16 +117,31 @@ public final class EventKitCalendarStore: CalendarProviding, @unchecked Sendable
   public static func mapReminder(_ reminder: EKReminder) -> TodoItem {
     let classified = EventClassifier.classify(title: reminder.title ?? "")
     var due: String?
+    var deferred = 0
     if let comps = reminder.dueDateComponents, let date = Calendar.current.date(from: comps) {
       due = ISO8601.string(from: date)
+      if !reminder.isCompleted {
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        if days > 0 {
+          deferred = max(1, Int(ceil(Double(days) / 7.0)))
+        }
+      }
     }
+    let title = reminder.title ?? "(无标题)"
+    let commitment = Self.inferCommitmentToOthers(title)
     return TodoItem(
       id: reminder.calendarItemIdentifier,
-      title: reminder.title ?? "(无标题)",
+      title: title,
       due: due,
-      deferredCount: 0,
+      deferredCount: deferred,
       roleId: classified.roleId,
-      completed: reminder.isCompleted
+      completed: reminder.isCompleted,
+      commitmentToOthers: commitment
     )
+  }
+
+  public static func inferCommitmentToOthers(_ title: String) -> Bool {
+    let patterns = ["回复", "答应", "承诺", "交给", "帮", "交稿", "评审意见", "同事", "客户", "设计"]
+    return patterns.contains { title.contains($0) }
   }
 }

@@ -108,4 +108,29 @@ public enum CalendarAnalyzer {
       .filter { $0.weeksStarved > 0 }
       .sorted { $0.weeksStarved > $1.weeksStarved }
   }
+
+  /// Consecutive weeks (from most recent) with &lt; 0.5h for each role.
+  public static func roleStarveWeeks(
+    events: [CalendarEvent],
+    roleIds: [String],
+    weeks: Int = 4,
+    now: Date = Date()
+  ) -> [String: Int] {
+    var result: [String: Int] = [:]
+    let calendar = Calendar.current
+    for id in roleIds {
+      var streak = 0
+      for w in 0..<weeks {
+        let weekOf = calendar.date(byAdding: .weekOfYear, value: -w, to: now) ?? now
+        let stats = computeWeeklyStats(events: events, roleIds: roleIds, weekOf: weekOf)
+        if (stats.roleHours[id] ?? 0) < 0.5 {
+          streak += 1
+        } else {
+          break
+        }
+      }
+      result[id] = streak
+    }
+    return result
+  }
 }

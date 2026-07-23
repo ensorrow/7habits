@@ -84,8 +84,14 @@ function ChatWindow() {
   const phase = useAppStore((s) => s.mentorPhase);
   const coldStep = useAppStore((s) => s.coldStartStep);
   const startWeekly = useAppStore((s) => s.startWeeklyReview);
+  const skipWeekly = useAppStore((s) => s.skipWeeklyReview);
   const confirmRoles = useAppStore((s) => s.confirmRoles);
+  const confirmMission = useAppStore((s) => s.confirmMissionProposal);
+  const confirmJournal = useAppStore((s) => s.confirmJournal);
   const roles = useAppStore((s) => s.roles);
+  const pendingMission = useAppStore((s) => s.pendingMissionProposal);
+  const journalDraft = useAppStore((s) => s.lastJournalDraft);
+  const missed = useAppStore((s) => s.missedWeeklyReviews);
   const [text, setText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -112,8 +118,11 @@ function ChatWindow() {
     if (phase === 'weekly-review') {
       return ['陪孩子的那一小时', '确实成了模式', '给健康：三次跑步', '身体', '周三晚健身一小时'];
     }
-    return ['我这周不得不一直救火', '我选择先顾家庭', '帮我排一块大石头'];
-  }, [phase, coldStep]);
+    if (missed >= 1) {
+      return ['开始周回顾', '你好', '我这周不得不一直救火'];
+    }
+    return ['我这周不得不一直救火', '我选择先顾家庭', '帮我排一块大石头', '你好'];
+  }, [phase, coldStep, missed]);
 
   const onSend = () => {
     if (!text.trim() || busy) return;
@@ -161,6 +170,20 @@ function ChatWindow() {
             </button>
           </div>
         )}
+        {(pendingMission || journalDraft) && (
+          <div className="quick-row">
+            {pendingMission && (
+              <button className="chip" onClick={confirmMission} disabled={busy}>
+                确认使命：「{pendingMission.slice(0, 18)}…」
+              </button>
+            )}
+            {journalDraft && (
+              <button className="chip" onClick={confirmJournal} disabled={busy}>
+                确认周记
+              </button>
+            )}
+          </div>
+        )}
         <div className="quick-row">
           {quick.map((q) => (
             <button key={q} className="chip" onClick={() => void send(q)} disabled={busy}>
@@ -177,6 +200,11 @@ function ChatWindow() {
               }}
             >
               开始周回顾
+            </button>
+          )}
+          {phase === 'daily' && (
+            <button className="chip" disabled={busy} onClick={skipWeekly}>
+              本周跳过回顾
             </button>
           )}
         </div>
@@ -207,6 +235,7 @@ function RoleDashboard() {
   const roles = useAppStore((s) => s.roles);
   const events = useAppStore((s) => s.events);
   const mission = useAppStore((s) => s.mission);
+  const pendingMissionDash = useAppStore((s) => s.pendingMissionProposal);
   const account = useAppStore((s) => s.emotionalAccount);
   const language = useAppStore((s) => s.languageStats);
   const todos = useAppStore((s) => s.todos);
@@ -290,6 +319,11 @@ function RoleDashboard() {
             最近线索：{mission.clues.slice(-2).join(' / ')}
           </p>
         )}
+        {pendingMissionDash && (
+          <p style={{ marginTop: '0.6rem' }}>
+            待确认：{pendingMissionDash}
+          </p>
+        )}
       </div>
 
       <div className="meta-card">
@@ -360,6 +394,8 @@ function SettingsPanel() {
   const reset = useAppStore((s) => s.resetAll);
   const demo = useAppStore((s) => s.triggerDemoIntervention);
   const scan = useAppStore((s) => s.scanInterventions);
+  const skipWeekly = useAppStore((s) => s.skipWeeklyReview);
+  const missed = useAppStore((s) => s.missedWeeklyReviews);
   const [patDraft, setPatDraft] = useState(qoderPat);
 
   useEffect(() => {
@@ -497,13 +533,19 @@ function SettingsPanel() {
 
         <div className="setting-block">
           <label>演示</label>
-          <p className="hint">触发一次 P0 承诺保卫，或扫描当前干预条件。</p>
+          <p className="hint">
+            触发一次 P0 承诺保卫，或扫描当前干预条件。
+            {missed > 0 ? ` 已跳过周回顾 ${missed} 次。` : ''}
+          </p>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button className="btn-ghost" onClick={demo}>
               演示：大石头被吞掉
             </button>
             <button className="btn-ghost" onClick={scan}>
               扫描干预
+            </button>
+            <button className="btn-ghost" onClick={skipWeekly}>
+              模拟跳过周回顾
             </button>
             <button className="btn-ghost" onClick={() => void reset()}>
               重置全部进度

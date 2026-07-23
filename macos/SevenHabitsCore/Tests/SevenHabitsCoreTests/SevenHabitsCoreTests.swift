@@ -74,11 +74,22 @@ final class CalendarAnalyzerTests: XCTestCase {
       phase: .coldStart,
       roles: [],
       events: [],
+      todos: [
+        TodoItem(
+          id: "t1",
+          title: "答应同事帮忙看 PR",
+          due: "2026-07-23T12:00:00.000Z",
+          deferredCount: 1,
+          commitmentToOthers: true
+        ),
+      ],
       emotionalAccount: EmotionalAccount(),
       weekCount: 0,
       volume: .standard,
       calendarAuthorized: false,
-      userAnswers: UserAnswers()
+      userAnswers: UserAnswers(),
+      missedWeeklyReviews: 1,
+      pendingMissionProposal: "家庭优先"
     )
 
     let data = try JSONEncoder().encode(MentorTurnRequest(context: ctx, userText: "同意"))
@@ -86,7 +97,46 @@ final class CalendarAnalyzerTests: XCTestCase {
     let context = try XCTUnwrap(json["context"] as? [String: Any])
     XCTAssertEqual(context["phase"] as? String, "cold-start")
     XCTAssertEqual(context["coldStartStep"] as? String, "permission")
+    XCTAssertEqual(context["missedWeeklyReviews"] as? Int, 1)
     XCTAssertEqual(json["userText"] as? String, "同意")
+  }
+
+  func testPersistedStateRoundTrip() throws {
+    let state = PersistedMentorState(
+      messages: [],
+      roles: [Role(id: "health", name: "健康的人", note: "", color: "#4A7C8C", confirmed: true)],
+      weekCount: 2,
+      missedWeeklyReviews: 1,
+      pendingMissionProposal: "产能先于产出"
+    )
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(PersistedMentorState.self, from: data)
+    XCTAssertEqual(decoded.weekCount, 2)
+    XCTAssertEqual(decoded.missedWeeklyReviews, 1)
+    XCTAssertEqual(decoded.pendingMissionProposal, "产能先于产出")
+    XCTAssertEqual(decoded.roles.first?.id, "health")
+  }
+
+  func testRoleStarveWeeksConsecutive() {
+    let events: [CalendarEvent] = [
+      CalendarEvent(
+        id: "1",
+        title: "站会",
+        start: "2026-07-21T09:00:00.000Z",
+        end: "2026-07-21T09:30:00.000Z",
+        roleId: "engineer",
+        category: .meeting
+      ),
+    ]
+    let now = ISO8601.date(from: "2026-07-22T12:00:00.000Z")!
+    let starve = CalendarAnalyzer.roleStarveWeeks(
+      events: events,
+      roleIds: ["engineer", "health"],
+      weeks: 3,
+      now: now
+    )
+    XCTAssertEqual(starve["health"] ?? 0, 3)
+    XCTAssertLessThan(starve["engineer"] ?? 99, 3)
   }
 }
 

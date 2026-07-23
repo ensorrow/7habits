@@ -115,6 +115,31 @@ export function generateMockCalendar(now = new Date()): CalendarEvent[] {
   return events;
 }
 
+/** Infer whether a todo is a promise to someone else (vs self-care). */
+export function inferCommitmentToOthers(title: string): boolean {
+  return /回复|答应|承诺|交给|帮|给.+[回电打电话]|交稿|评审意见|同事|客户|设计/.test(title);
+}
+
+/** Weeks overdue for an incomplete past-due item — EventKit has no true defer counter. */
+export function estimateDeferredCount(due: string | undefined, completed: boolean, now = new Date()): number {
+  if (completed || !due) return 0;
+  const dueDate = new Date(due);
+  if (Number.isNaN(+dueDate) || dueDate >= now) return 0;
+  const days = Math.floor((+now - +dueDate) / 86400000);
+  return Math.max(1, Math.ceil(days / 7));
+}
+
+export function enrichTodo(todo: TodoItem): TodoItem {
+  return {
+    ...todo,
+    commitmentToOthers: todo.commitmentToOthers ?? inferCommitmentToOthers(todo.title),
+    deferredCount:
+      todo.deferredCount > 0
+        ? todo.deferredCount
+        : estimateDeferredCount(todo.due, todo.completed),
+  };
+}
+
 export function generateMockTodos(): TodoItem[] {
   return [
     {
@@ -124,6 +149,7 @@ export function generateMockTodos(): TodoItem[] {
       roleId: 'health',
       completed: false,
       due: formatISO(subDays(new Date(), 14)),
+      commitmentToOthers: false,
     },
     {
       id: 't2',
@@ -131,6 +157,7 @@ export function generateMockTodos(): TodoItem[] {
       deferredCount: 2,
       roleId: 'father',
       completed: false,
+      commitmentToOthers: true,
     },
     {
       id: 't3',
@@ -139,6 +166,7 @@ export function generateMockTodos(): TodoItem[] {
       roleId: 'engineer',
       completed: false,
       due: formatISO(addDays(new Date(), 2)),
+      commitmentToOthers: false,
     },
     {
       id: 't4',
@@ -146,6 +174,7 @@ export function generateMockTodos(): TodoItem[] {
       deferredCount: 3,
       roleId: 'father',
       completed: false,
+      commitmentToOthers: true,
     },
     {
       id: 't5',
@@ -153,8 +182,18 @@ export function generateMockTodos(): TodoItem[] {
       deferredCount: 0,
       roleId: 'engineer',
       completed: true,
+      commitmentToOthers: true,
     },
-  ];
+    {
+      id: 't6',
+      title: '答应同事帮忙看 PR',
+      deferredCount: 0,
+      roleId: 'engineer',
+      completed: false,
+      due: formatISO(addDays(new Date(), 1)),
+      commitmentToOthers: true,
+    },
+  ].map(enrichTodo);
 }
 
 export function hoursBetween(start: string, end: string): number {
@@ -261,6 +300,51 @@ export function findHungryRoles(
     }))
     .filter((r) => r.weeksStarved > 0)
     .sort((a, b) => b.weeksStarved - a.weeksStarved);
+}
+
+/** Consecutive weeks (from most recent) with &lt; 0.5h for each role. */
+export function computeRoleStarveWeeks(
+  events: CalendarEvent[],
+  roleIds: string[],
+  weeks = 4,
+  now = new Date(),
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const id of roleIds) {
+    let streak = 0;
+    for (let w = 0; w < weeks; w++) {
+      const stats = computeWeeklyStats(events, roleIds, subWeeks(now, w));
+      if ((stats.roleHours[id] ?? 0) < 0.5) streak++;
+      else break;
+    }
+    result[id] = streak;
+  }
+  return result;
+}
+
+/** Chronically deferred todos — second-quadrant signal for mentor. */
+export function chronicallyDeferredTodos(todos: TodoItem[], minDefer = 2): TodoItem[] {
+  return todos
+    .map(enrichTodo)
+    .filter((t) => !t.completed && t.deferredCount >= minDefer)
+    .sort((a, b) => b.deferredCount - a.deferredCount);
+}
+
+/** Commitments to others due within `withinDays` (past-due counts). */
+export function upcomingCommitmentsToOthers(
+  todos: TodoItem[],
+  withinDays = 2,
+  now = new Date(),
+): TodoItem[] {
+  const horizon = addDays(now, withinDays);
+  return todos
+    .map(enrichTodo)
+    .filter((t) => {
+      if (t.completed || !t.commitmentToOthers || !t.due) return false;
+      const due = new Date(t.due);
+      return !Number.isNaN(+due) && due <= horizon;
+    })
+    .sort((a, b) => +new Date(a.due!) - +new Date(b.due!));
 }
 
 export { ROLE_COLORS };

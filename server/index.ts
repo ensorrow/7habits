@@ -1,6 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { respond, type MentorContext, type MentorReply } from '../src/services/mentor.ts';
 import {
+  evaluateInterventions,
+  type InterventionInput,
+} from '../src/services/interventions.ts';
+import {
   getMentorAgentStatus,
   phraseWithQoderAgent,
   type MentorAgentSource,
@@ -25,6 +29,10 @@ export interface MentorTurnResponse {
   reply: MentorReply;
   source: MentorAgentSource;
   error?: string;
+}
+
+export interface MentorInterventionsRequest {
+  input: InterventionInput;
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -116,6 +124,23 @@ async function handleTurn(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+async function handleInterventions(req: IncomingMessage, res: ServerResponse) {
+  const raw = await readBody(req);
+  let body: MentorInterventionsRequest;
+  try {
+    body = JSON.parse(raw) as MentorInterventionsRequest;
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+  if (!body?.input) {
+    sendJson(res, 400, { error: 'input is required' });
+    return;
+  }
+  const intervention = evaluateInterventions(body.input);
+  sendJson(res, 200, { intervention });
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
 
@@ -145,6 +170,16 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/api/mentor/turn') {
     try {
       await handleTurn(req, res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error: message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/mentor/interventions') {
+    try {
+      await handleInterventions(req, res);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       sendJson(res, 500, { error: message });

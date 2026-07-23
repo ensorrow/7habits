@@ -130,4 +130,117 @@ describe('interventions', () => {
     expect(hit?.priority).toBe('P0');
     expect(hit?.message).toContain('挪去哪');
   });
+
+  it('fires P0 for commitment to others nearing due', () => {
+    const hit = evaluateInterventions({
+      events: [],
+      rocks: [],
+      roles: [{ id: 'engineer', name: '工程师', note: '', color: '', confirmed: true }],
+      promises: [],
+      todos: [
+        {
+          id: 'c1',
+          title: '答应同事帮忙看 PR',
+          deferredCount: 0,
+          completed: false,
+          due: new Date(Date.now() + 3600000).toISOString(),
+          commitmentToOthers: true,
+          roleId: 'engineer',
+        },
+      ],
+      emotionalAccount: deposit(createAccount(), 50),
+      volume: 'standard',
+      weekCount: 2,
+      interventionsThisWeek: 0,
+      silenceMode: false,
+    });
+    expect(hit?.priority).toBe('P0');
+    expect(hit?.message).toContain('对别人的承诺');
+  });
+
+  it('fires P1 when Q1 ratio rises', () => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(10, 0, 0, 0);
+    const events = Array.from({ length: 6 }, (_, i) => ({
+      id: `m${i}`,
+      title: '紧急客户会议',
+      start: new Date(start.getTime() + i * 3600000).toISOString(),
+      end: new Date(start.getTime() + i * 3600000 + 3600000).toISOString(),
+      roleId: 'engineer',
+      category: 'meeting' as const,
+    }));
+    const hit = evaluateInterventions({
+      events,
+      rocks: [],
+      roles: [{ id: 'engineer', name: '工程师', note: '', color: '', confirmed: true }],
+      promises: [],
+      emotionalAccount: deposit(createAccount(), 60),
+      volume: 'standard',
+      weekCount: 2,
+      interventionsThisWeek: 0,
+      silenceMode: false,
+      priorQ1Ratio: 30,
+    });
+    expect(hit?.priority).toBe('P1');
+    expect(hit?.message).toMatch(/第一象限|救火/);
+  });
+});
+
+describe('weekly promise follow-up', () => {
+  it('asks about pending promise on greeting', async () => {
+    const { dailyReply } = await import('./mentor');
+    const r = dailyReply(
+      baseCtx({
+        phase: 'daily',
+        weekCount: 2,
+        pendingPromise: {
+          id: 'p1',
+          text: '健康的人的进展',
+          weekOf: '2026-07-13',
+          asked: false,
+        },
+        emotionalAccount: deposit(createAccount(), 50),
+      }),
+      '你好',
+    );
+    expect(r.markPromiseAsked).toBe(true);
+    expect(r.content).toContain('上周之约');
+  });
+});
+
+describe('mission proposal', () => {
+  it('proposes mission at weekly closing', () => {
+    const r = weeklyReviewReply(
+      baseCtx({
+        phase: 'weekly-review',
+        weeklyReviewAct: 'schedule',
+        weekCount: 1,
+        roles: [
+          { id: 'father', name: '父亲', note: '', color: '#000', confirmed: true },
+          { id: 'health', name: '健康的人', note: '', color: '#000', confirmed: true },
+        ],
+        userAnswers: { noRegret: '陪孩子散步', hungryRolePlan: '给健康跑步' },
+        emotionalAccount: deposit(createAccount(), 55),
+        weeklyStats: {
+          weekOf: '2026-07-20',
+          roleHours: { father: 1, health: 0 },
+          totalHours: 10,
+          plannedRocks: 5,
+          landedRocks: 2,
+          q1Ratio: 40,
+          language: {
+            reactiveCount: 0,
+            proactiveCount: 0,
+            reactivePhrases: [],
+            proactivePhrases: [],
+          },
+        },
+      }),
+      '健康的人，周三晚跑步一小时',
+    );
+    expect(r.proposeMission).toBeTruthy();
+    expect(r.journalDraft).toBeTruthy();
+    expect(r.content).toContain('下周之约');
+  });
 });

@@ -60,6 +60,7 @@ struct ChatView: View {
       if model.phase == .daily {
         HStack {
           Button("开始周回顾") { model.startWeeklyReview() }
+          Button("本周跳过回顾") { model.skipWeeklyReview() }
           if let role = model.roles.first(where: { $0.id == "health" }) ?? model.roles.first {
             Button("写入大石头：给「\(role.name)」1小时") {
               Task {
@@ -70,6 +71,23 @@ struct ChatView: View {
                 )
               }
             }
+          }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+      }
+
+      if model.pendingMissionProposal != nil || model.lastJournalDraft != nil {
+        HStack {
+          if model.pendingMissionProposal != nil {
+            Button("确认使命草稿") { model.confirmMissionProposal() }
+          }
+          if model.lastJournalDraft != nil {
+            Button("确认周记") { model.confirmJournal() }
+          }
+          if model.pendingIntervention != nil, model.pendingIntervention?.acknowledged != true {
+            Button("打开干预") { model.acknowledgeIntervention() }
+            Button("稍后再说") { model.dismissIntervention() }
           }
         }
         .padding(.horizontal, 16)

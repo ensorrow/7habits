@@ -70,11 +70,31 @@ struct DashboardView: View {
             ForEach(model.mission.statements, id: \.self) { Text("• \($0)") }
             ForEach(model.mission.clues, id: \.self) { Text("线索：\($0)").foregroundStyle(.secondary) }
           }
+          if let pending = model.pendingMissionProposal {
+            Text("待确认：\(pending)")
+              .font(.caption)
+              .foregroundStyle(.orange)
+            Button("确认写入使命") { model.confirmMissionProposal() }
+          }
         }
 
         GroupBox("情感账户") {
           LabeledContent("等级", value: model.emotionalAccount.level.rawValue)
           LabeledContent("余额", value: "\(model.emotionalAccount.balance)")
+          if model.emotionalAccount.silenceMode {
+            Text("静默熔断中——仅周回顾开口")
+              .font(.caption)
+              .foregroundStyle(.orange)
+          }
+        }
+
+        let deferred = model.todos.filter { !$0.completed && $0.deferredCount >= 2 }
+        if !deferred.isEmpty {
+          GroupBox("反复推迟的待办") {
+            ForEach(deferred) { todo in
+              Text("\(todo.title)（推迟 \(todo.deferredCount) 次）")
+            }
+          }
         }
       }
       .padding(4)

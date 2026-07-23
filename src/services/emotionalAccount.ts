@@ -85,3 +85,33 @@ export function createAccount(): EmotionalAccount {
     silenceMode: false,
   };
 }
+
+/**
+ * Consecutive dismissals / "don't bother me" → silence circuit breaker.
+ * Two strikes enter silence; deposits that restore balance ≥ 25 clear it.
+ */
+export function registerIgnore(
+  account: EmotionalAccount,
+  consecutiveIgnores: number,
+): { account: EmotionalAccount; consecutiveIgnores: number } {
+  const next = consecutiveIgnores + 1;
+  const withdrawn = withdraw(account, 3);
+  if (next >= 2) {
+    return {
+      account: { ...withdrawn, silenceMode: true },
+      consecutiveIgnores: next,
+    };
+  }
+  return { account: withdrawn, consecutiveIgnores: next };
+}
+
+export function registerEngage(
+  account: EmotionalAccount,
+  consecutiveIgnores: number,
+): { account: EmotionalAccount; consecutiveIgnores: number } {
+  if (consecutiveIgnores === 0 && !account.silenceMode) {
+    return { account, consecutiveIgnores: 0 };
+  }
+  const restored = deposit(account, 1, 'engage');
+  return { account: restored, consecutiveIgnores: 0 };
+}

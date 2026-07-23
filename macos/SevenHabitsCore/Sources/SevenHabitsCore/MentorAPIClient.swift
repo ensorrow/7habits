@@ -80,6 +80,21 @@ public struct MentorAPIClient: Sendable {
     }
   }
 
+  public func evaluateInterventions(_ body: InterventionEvalRequest) async throws -> InterventionEvalResponse {
+    let url = baseURL.appendingPathComponent("api/mentor/interventions")
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try encoder.encode(body)
+    let (data, response) = try await data(for: request)
+    try ensureOK(response, data: data)
+    do {
+      return try decoder.decode(InterventionEvalResponse.self, from: data)
+    } catch {
+      throw MentorAPIError.decoding(String(describing: error))
+    }
+  }
+
   private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
     do {
       return try await session.data(for: request)

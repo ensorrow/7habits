@@ -134,6 +134,7 @@ public struct TodoItem: Codable, Identifiable, Sendable, Hashable {
   public var deferredCount: Int
   public var roleId: String?
   public var completed: Bool
+  public var commitmentToOthers: Bool?
 
   public init(
     id: String,
@@ -141,7 +142,8 @@ public struct TodoItem: Codable, Identifiable, Sendable, Hashable {
     due: String? = nil,
     deferredCount: Int = 0,
     roleId: String? = nil,
-    completed: Bool = false
+    completed: Bool = false,
+    commitmentToOthers: Bool? = nil
   ) {
     self.id = id
     self.title = title
@@ -149,6 +151,7 @@ public struct TodoItem: Codable, Identifiable, Sendable, Hashable {
     self.deferredCount = deferredCount
     self.roleId = roleId
     self.completed = completed
+    self.commitmentToOthers = commitmentToOthers
   }
 }
 
@@ -220,6 +223,24 @@ public struct Intervention: Codable, Identifiable, Sendable, Hashable {
   public var triggeredAt: String
   public var acknowledged: Bool
   public var dismissed: Bool
+
+  public init(
+    id: String,
+    priority: InterventionPriority,
+    channel: InterventionChannel,
+    message: String,
+    triggeredAt: String,
+    acknowledged: Bool = false,
+    dismissed: Bool = false
+  ) {
+    self.id = id
+    self.priority = priority
+    self.channel = channel
+    self.message = message
+    self.triggeredAt = triggeredAt
+    self.acknowledged = acknowledged
+    self.dismissed = dismissed
+  }
 }
 
 public struct LanguageStats: Codable, Sendable {
@@ -286,6 +307,7 @@ public struct MentorContext: Codable, Sendable {
   public var phase: AppPhase
   public var roles: [Role]
   public var events: [CalendarEvent]
+  public var todos: [TodoItem]?
   public var emotionalAccount: EmotionalAccount
   public var weekCount: Int
   public var volume: VolumeSetting
@@ -293,6 +315,11 @@ public struct MentorContext: Codable, Sendable {
   public var pendingPromise: WeeklyPromise?
   public var calendarAuthorized: Bool
   public var userAnswers: UserAnswers
+  public var missedWeeklyReviews: Int?
+  public var priorQ1Ratio: Int?
+  public var roleStarveWeeks: [String: Int]?
+  public var languageStats: LanguageStats?
+  public var pendingMissionProposal: String?
 
   public init(
     messages: [ChatMessage],
@@ -301,13 +328,19 @@ public struct MentorContext: Codable, Sendable {
     phase: AppPhase,
     roles: [Role],
     events: [CalendarEvent],
+    todos: [TodoItem]? = nil,
     emotionalAccount: EmotionalAccount,
     weekCount: Int,
     volume: VolumeSetting,
     weeklyStats: WeeklyStats? = nil,
     pendingPromise: WeeklyPromise? = nil,
     calendarAuthorized: Bool,
-    userAnswers: UserAnswers
+    userAnswers: UserAnswers,
+    missedWeeklyReviews: Int? = nil,
+    priorQ1Ratio: Int? = nil,
+    roleStarveWeeks: [String: Int]? = nil,
+    languageStats: LanguageStats? = nil,
+    pendingMissionProposal: String? = nil
   ) {
     self.messages = messages
     self.coldStartStep = coldStartStep
@@ -315,6 +348,7 @@ public struct MentorContext: Codable, Sendable {
     self.phase = phase
     self.roles = roles
     self.events = events
+    self.todos = todos
     self.emotionalAccount = emotionalAccount
     self.weekCount = weekCount
     self.volume = volume
@@ -322,6 +356,11 @@ public struct MentorContext: Codable, Sendable {
     self.pendingPromise = pendingPromise
     self.calendarAuthorized = calendarAuthorized
     self.userAnswers = userAnswers
+    self.missedWeeklyReviews = missedWeeklyReviews
+    self.priorQ1Ratio = priorQ1Ratio
+    self.roleStarveWeeks = roleStarveWeeks
+    self.languageStats = languageStats
+    self.pendingMissionProposal = pendingMissionProposal
   }
 }
 
@@ -344,6 +383,12 @@ public struct MentorReply: Codable, Sendable {
   public var phase: AppPhase?
   public var extractClue: String?
   public var habitFocus: [String]?
+  public var proposeMission: String?
+  public var markPromiseAsked: Bool?
+  public var markPromiseFulfilled: Bool?
+  public var enterSilence: Bool?
+  public var clearSilence: Bool?
+  public var journalDraft: String?
 }
 
 public struct MentorTurnRequest: Codable, Sendable {
@@ -366,6 +411,67 @@ public struct MentorTurnResponse: Codable, Sendable {
   public var error: String?
 }
 
+public struct InterventionEvalInput: Codable, Sendable {
+  public var events: [CalendarEvent]
+  public var rocks: [BigRock]
+  public var roles: [Role]
+  public var promises: [WeeklyPromise]
+  public var todos: [TodoItem]?
+  public var emotionalAccount: EmotionalAccount
+  public var volume: VolumeSetting
+  public var weekCount: Int
+  public var interventionsThisWeek: Int
+  public var silenceMode: Bool
+  public var lastInterventionAt: String?
+  public var priorQ1Ratio: Int?
+  public var languageStats: LanguageStats?
+  public var roleStarveWeeks: [String: Int]?
+
+  public init(
+    events: [CalendarEvent],
+    rocks: [BigRock],
+    roles: [Role],
+    promises: [WeeklyPromise],
+    todos: [TodoItem]? = nil,
+    emotionalAccount: EmotionalAccount,
+    volume: VolumeSetting,
+    weekCount: Int,
+    interventionsThisWeek: Int,
+    silenceMode: Bool,
+    lastInterventionAt: String? = nil,
+    priorQ1Ratio: Int? = nil,
+    languageStats: LanguageStats? = nil,
+    roleStarveWeeks: [String: Int]? = nil
+  ) {
+    self.events = events
+    self.rocks = rocks
+    self.roles = roles
+    self.promises = promises
+    self.todos = todos
+    self.emotionalAccount = emotionalAccount
+    self.volume = volume
+    self.weekCount = weekCount
+    self.interventionsThisWeek = interventionsThisWeek
+    self.silenceMode = silenceMode
+    self.lastInterventionAt = lastInterventionAt
+    self.priorQ1Ratio = priorQ1Ratio
+    self.languageStats = languageStats
+    self.roleStarveWeeks = roleStarveWeeks
+  }
+}
+
+public struct InterventionEvalRequest: Codable, Sendable {
+  public var input: InterventionEvalInput
+
+  public init(input: InterventionEvalInput) {
+    self.input = input
+  }
+}
+
+public struct InterventionEvalResponse: Codable, Sendable {
+  public var intervention: Intervention?
+}
+
 public struct MentorAgentStatus: Codable, Sendable {
   public var available: Bool
   public var authMode: String?
@@ -375,6 +481,80 @@ public struct MentorAgentStatus: Codable, Sendable {
     self.available = available
     self.authMode = authMode
     self.reason = reason
+  }
+}
+
+/// Session snapshot persisted across launches (UserDefaults).
+public struct PersistedMentorState: Codable, Sendable {
+  public var messages: [ChatMessage]
+  public var roles: [Role]
+  public var mission: MissionDraft
+  public var emotionalAccount: EmotionalAccount
+  public var rocks: [BigRock]
+  public var promises: [WeeklyPromise]
+  public var phase: AppPhase
+  public var coldStartStep: ColdStartStep
+  public var weeklyReviewAct: WeeklyReviewAct
+  public var weekCount: Int
+  public var volume: VolumeSetting
+  public var calendarAuthorized: Bool
+  public var remindersAuthorized: Bool
+  public var missedWeeklyReviews: Int
+  public var priorQ1Ratio: Int?
+  public var consecutiveIgnores: Int
+  public var pendingMissionProposal: String?
+  public var lastJournalDraft: String?
+  public var languageStats: LanguageStats
+  public var userAnswers: UserAnswers
+  public var interventionsThisWeek: Int
+  public var lastInterventionAt: String?
+
+  public init(
+    messages: [ChatMessage] = [],
+    roles: [Role] = [],
+    mission: MissionDraft = MissionDraft(),
+    emotionalAccount: EmotionalAccount = EmotionalAccount(),
+    rocks: [BigRock] = [],
+    promises: [WeeklyPromise] = [],
+    phase: AppPhase = .coldStart,
+    coldStartStep: ColdStartStep = .intro,
+    weeklyReviewAct: WeeklyReviewAct = .prep,
+    weekCount: Int = 0,
+    volume: VolumeSetting = .standard,
+    calendarAuthorized: Bool = false,
+    remindersAuthorized: Bool = false,
+    missedWeeklyReviews: Int = 0,
+    priorQ1Ratio: Int? = nil,
+    consecutiveIgnores: Int = 0,
+    pendingMissionProposal: String? = nil,
+    lastJournalDraft: String? = nil,
+    languageStats: LanguageStats = LanguageStats(),
+    userAnswers: UserAnswers = UserAnswers(),
+    interventionsThisWeek: Int = 0,
+    lastInterventionAt: String? = nil
+  ) {
+    self.messages = messages
+    self.roles = roles
+    self.mission = mission
+    self.emotionalAccount = emotionalAccount
+    self.rocks = rocks
+    self.promises = promises
+    self.phase = phase
+    self.coldStartStep = coldStartStep
+    self.weeklyReviewAct = weeklyReviewAct
+    self.weekCount = weekCount
+    self.volume = volume
+    self.calendarAuthorized = calendarAuthorized
+    self.remindersAuthorized = remindersAuthorized
+    self.missedWeeklyReviews = missedWeeklyReviews
+    self.priorQ1Ratio = priorQ1Ratio
+    self.consecutiveIgnores = consecutiveIgnores
+    self.pendingMissionProposal = pendingMissionProposal
+    self.lastJournalDraft = lastJournalDraft
+    self.languageStats = languageStats
+    self.userAnswers = userAnswers
+    self.interventionsThisWeek = interventionsThisWeek
+    self.lastInterventionAt = lastInterventionAt
   }
 }
 
