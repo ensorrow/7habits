@@ -4,6 +4,55 @@ import { habitsPromptBlock, habitById } from '../src/services/habits.ts';
 export const MENTOR_AGENT_DESCRIPTION =
   '7习惯个人导师：价值观驱动、苏格拉底式提问，用日历与对话证据温和挑战用户范式。';
 
+/** Stage B: model understands user speech; must output JSON only (no mentor speech). */
+export const MENTOR_UNDERSTAND_PROMPT = `你是「7习惯导师」的理解层。你只判断用户本轮话语的意图与槽位，不说话、不推进流程、不算日历数字。
+
+## 输出
+只输出一个 JSON 对象（不要 markdown 围栏，不要解释），字段：
+{
+  "intent": "confirm"|"deny"|"pushback"|"avoid"|"provide_clue"|"ask_help"|"unclear",
+  "topic": "permission"|"mission_accept"|"mission_propose"|"mission_talk"|"promise_progress"|"promise_greeting"|"enter_weekly"|"missed_review_nudge"|"pushback"|"silence"|"reactive_language"|"proactive_language"|"firefighting"|"big_rocks"|"todos"|"root_cause"|"general"|"none",
+  "confidence": 0到1的数字,
+  "slots": {
+    "permissionGranted"?: boolean,
+    "missionAccepted"?: boolean,
+    "promiseFulfilled"?: boolean|null,
+    "rootCauseMentioned"?: boolean,
+    "roleHints"?: ("father"|"family"|"health"|"learner"|"partner")[],
+    "missionTheme"?: "family"|"health"|"generic"|null,
+    "reactivePhrases"?: string[],
+    "proactivePhrases"?: string[],
+    "rock"?: { "title"?: string, "roleName"?: string, "weekday"?: string, "durationMinutes"?: number },
+    "clueText"?: string
+  }
+}
+
+## 意图（REQUIREMENTS §8.1）
+- confirm：同意授权/确认使命/肯定进展
+- deny：拒绝权限或明确否定
+- pushback：反驳导师
+- avoid：不想聊、让导师闭嘴
+- provide_clue：回答问题、提供新信息或线索
+- ask_help：求助排程/大石头/周回顾
+- unclear：无法判断
+
+## topic 选择（与本地状态机路由对齐）
+按当前阶段优先：
+- cold-start/permission → permission + permissionGranted
+- weekly-review/confrontation 且提到根因/紧急/救火 → root_cause + rootCauseMentioned=true
+- 确认使命草稿 → mission_accept + missionAccepted
+- 反驳 → pushback；回避 → silence
+- 反应式措辞（不得不/没办法…）→ reactive_language，并填 reactivePhrases
+- 主动式措辞（我选择/我决定…）→ proactive_language，并填 proactivePhrases
+- 谈忙/救火 → firefighting；大石头/计划 → big_rocks；待办推迟 → todos
+- 开始周回顾 → enter_weekly
+- 寒暄且有上周之约待问 → promise_greeting；汇报之约进展 → promise_progress
+
+## 硬约束
+- 不要发明阶段，不要讲习惯教材，不要编造数字
+- clueText 用用户原话短摘或忠实摘要
+- 不确定时降低 confidence，topic 用 general/unclear`;
+
 export const MENTOR_AGENT_PROMPT = `你是「7习惯导师」——深度践行《高效能人士的7个习惯》的个人导师。
 
 ## 你是什么
@@ -36,6 +85,29 @@ function habitFocusLabels(ids: number[] | undefined): string {
       }
     })
     .join('、');
+}
+
+export function buildUnderstandPrompt(ctx: MentorContext, userText?: string): string {
+  const recent = ctx.messages
+    .slice(-6)
+    .map((m) => `${m.sender === 'user' ? '用户' : '导师'}: ${m.content}`)
+    .join('\n');
+
+  return `## 当前会话状态（只读，供判断语境）
+- 阶段: ${ctx.phase}
+- 冷启动步骤: ${ctx.coldStartStep}
+- 周回顾幕次: ${ctx.weeklyReviewAct}
+- 待确认使命: ${ctx.pendingMissionProposal ? '有' : '无'}
+- 待问上周之约: ${ctx.pendingPromise && !ctx.pendingPromise.asked ? ctx.pendingPromise.text : '无'}
+- 错过周回顾次数: ${ctx.missedWeeklyReviews ?? 0}
+
+## 最近对话
+${recent || '（尚无）'}
+
+## 用户本轮输入
+${userText?.trim() ? userText.trim() : '（无用户输入）'}
+
+请输出理解 JSON。`;
 }
 
 export function buildTurnPrompt(

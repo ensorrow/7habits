@@ -1,5 +1,12 @@
 import type { MentorContext, MentorReply } from '../src/services/mentor.ts';
-import { buildTurnPrompt, MENTOR_AGENT_PROMPT } from './mentorPrompt.ts';
+import {
+  buildTurnPrompt,
+  buildUnderstandPrompt,
+  MENTOR_AGENT_PROMPT,
+  MENTOR_UNDERSTAND_PROMPT,
+} from './mentorPrompt.ts';
+import type { UnderstandingResult } from '../src/types/understanding.ts';
+import { coalesceUnderstanding, understandLocal } from '../src/services/understanding.ts';
 
 export type MentorAgentSource = 'qoder' | 'local';
 
@@ -14,6 +21,7 @@ const QODER_MODEL = 'auto';
 const CLOUD_API_BASE =
   process.env.QODER_CLOUD_API_BASE?.trim() || 'https://api.qoder.com/api/v1/cloud';
 const MENTOR_CLOUD_AGENT_NAME = 'seven-habits-mentor';
+const MENTOR_UNDERSTAND_AGENT_NAME = 'seven-habits-mentor-understand';
 
 type CloudContentBlock = { type: string; text?: string };
 type CloudEvent = {
@@ -29,6 +37,7 @@ type CloudSession = {
 
 let cachedEnvironmentId: string | null = null;
 let cachedAgentId: string | null = null;
+let cachedUnderstandAgentId: string | null = null;
 
 function resolveAccessToken(accessTokenOverride?: string): string | null {
   const fromUi = accessTokenOverride?.trim();
@@ -254,4 +263,165 @@ export async function phraseWithQoderAgent(
       },
     ],
   };
+}
+
+
+async function ensureUnderstandAgent(token: string): Promise<string> {
+  if (cachedUnderstandAgentId) return cachedUnderstandAgentId;
+
+  const listed = await cloudFetch<{ data?: Array<{ id?: string; name?: string }> }>(
+    token,
+    'GET',
+    '/agents?limit=50',
+  );
+  const existing = listed.data?.find((a) => a.name === MENTOR_UNDERSTAND_AGENT_NAME && a.id);
+  if (existing?.id) {
+    const detail = await cloudFetch<{ id?: string; version?: number; system?: string }>(
+      token,
+      'GET',
+      `/agents/${existing.id}`,
+    );
+    if (detail.system !== MENTOR_UNDERSTAND_PROMPT && detail.version != null) {
+      await cloudFetch(token, 'POST', `/agents/${existing.id}`, {
+        version: detail.version,
+        name: MENTOR_UNDERSTAND_AGENT_NAME,
+        model: QODER_MODEL,
+        description: '7习惯导师理解层（Stage B：意图/槽位 JSON，不推进状态机）',
+        system: MENTOR_UNDERSTAND_PROMPT,
+      });
+    }
+    cachedUnderstandAgentId = existing.id;
+    return existing.id;
+  }
+
+  const created = await cloudFetch<{ id?: string }>(token, 'POST', '/agents', {
+    name: MENTOR_UNDERSTAND_AGENT_NAME,
+    model: QODER_MODEL,
+    description: '7习惯导师理解层（Stage B：意图/槽位 JSON，不推进状态机）',
+    system: MENTOR_UNDERSTAND_PROMPT,
+  });
+  if (!created.id) {
+    throw new Error('Cloud Agents 创建 understand agent 失败：响应无 id');
+  }
+  cachedUnderstandAgentId = created.id;
+  return created.id;
+}
+
+function extractJsonObject(text: string): unknown {
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+    throw new Error('Understand agent did not return JSON');
+  }
+}
+
+const INTENTS = new Set([
+  'confirm',
+  'deny',
+  'pushback',
+  'avoid',
+  'provide_clue',
+  'ask_help',
+  'unclear',
+]);
+const TOPICS = new Set([
+  'permission',
+  'mission_accept',
+  'mission_propose',
+  'mission_talk',
+  'promise_progress',
+  'promise_greeting',
+  'enter_weekly',
+  'missed_review_nudge',
+  'pushback',
+  'silence',
+  'reactive_language',
+  'proactive_language',
+  'firefighting',
+  'big_rocks',
+  'todos',
+  'root_cause',
+  'general',
+  'none',
+]);
+
+function parseUnderstandingPayload(raw: unknown): Partial<UnderstandingResult> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const intent = obj.intent;
+  const topic = obj.topic;
+  if (typeof intent !== 'string' || !INTENTS.has(intent)) return null;
+  if (typeof topic !== 'string' || !TOPICS.has(topic)) return null;
+  const confidence =
+    typeof obj.confidence === 'number' ? obj.confidence : Number(obj.confidence);
+  const slots =
+    obj.slots && typeof obj.slots === 'object'
+      ? (obj.slots as UnderstandingResult['slots'])
+      : {};
+  return {
+    intent: intent as UnderstandingResult['intent'],
+    topic: topic as UnderstandingResult['topic'],
+    confidence: Number.isFinite(confidence) ? confidence : 0.7,
+    slots,
+    source: 'model',
+  };
+}
+
+/**
+ * Stage B: ask the model for structured understanding, coalesce with local degrade.
+ */
+export async function understandWithQoderAgent(
+  ctx: MentorContext,
+  userText?: string,
+  accessTokenOverride?: string,
+): Promise<UnderstandingResult> {
+  const local = understandLocal(ctx, userText);
+  // No user text → nothing to understand; keep local (usually none/unclear)
+  if (!userText?.trim()) return local;
+
+  const token = resolveAccessToken(accessTokenOverride);
+  if (!token) {
+    throw new Error('Qoder auth not configured');
+  }
+
+  const prompt = buildUnderstandPrompt(ctx, userText);
+  const [environmentId, agentId] = await Promise.all([
+    ensureEnvironmentId(token),
+    ensureUnderstandAgent(token),
+  ]);
+
+  const session = await cloudFetch<CloudSession>(token, 'POST', '/sessions', {
+    agent: agentId,
+    environment_id: environmentId,
+    title: `understand-${ctx.phase}-${Date.now()}`,
+  });
+  if (!session.id) {
+    throw new Error('Cloud Agents 创建 understand session 失败：响应无 id');
+  }
+
+  await cloudFetch(token, 'POST', `/sessions/${session.id}/events`, {
+    events: [
+      {
+        type: 'user.message',
+        content: [{ type: 'text', text: prompt }],
+      },
+    ],
+  });
+
+  const spoken = sanitizeMentorSpeech(await waitForAgentSpeech(token, session.id));
+  if (!spoken) {
+    throw new Error('Qoder understand agent returned empty');
+  }
+
+  const parsed = parseUnderstandingPayload(extractJsonObject(spoken));
+  return coalesceUnderstanding(parsed, local);
 }

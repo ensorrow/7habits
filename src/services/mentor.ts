@@ -3,9 +3,13 @@ import {
   chronicallyDeferredTodos,
   upcomingCommitmentsToOthers,
 } from './calendar';
-import { analyzeLanguage } from './language';
 import { challengeMode } from './emotionalAccount';
 import { habitFocusForTurn, type HabitId } from './habits';
+import {
+  inferMissionTheme,
+  inferRoleHints,
+  understandLocal,
+} from './understanding';
 import type {
   CalendarEvent,
   ChatMessage,
@@ -19,6 +23,13 @@ import type {
   WeeklyReviewAct,
   WeeklyStats,
 } from '../types';
+import type {
+  MissionTheme,
+  RoleHint,
+  UnderstandingResult,
+} from '../types/understanding';
+
+export type { UnderstandingResult } from '../types/understanding';
 
 export interface MentorContext {
   messages: ChatMessage[];
@@ -69,6 +80,8 @@ export interface MentorReply {
   habitFocus?: HabitId[];
   /** Propose a mission statement for user confirm */
   proposeMission?: string;
+  /** User accepted pending mission proposal */
+  acceptMission?: boolean;
   /** Mark pending weekly promise as asked */
   markPromiseAsked?: boolean;
   /** Mark pending weekly promise fulfilled */
@@ -88,8 +101,21 @@ function withHabitFocus(
   return focus.length > 0 ? { ...reply, habitFocus: focus } : { ...reply, habitFocus: [] };
 }
 
-export function coldStartReply(ctx: MentorContext, userText?: string): MentorReply {
+function resolveUnderstanding(
+  ctx: MentorContext,
+  userText: string | undefined,
+  understanding?: UnderstandingResult,
+): UnderstandingResult {
+  return understanding ?? understandLocal(ctx, userText);
+}
+
+export function coldStartReply(
+  ctx: MentorContext,
+  userText?: string,
+  understanding?: UnderstandingResult,
+): MentorReply {
   const step = ctx.coldStartStep;
+  const u = resolveUnderstanding(ctx, userText, understanding);
   const tag = (reply: MentorReply, stepOverride?: string) =>
     withHabitFocus(
       reply,
@@ -108,7 +134,7 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
       });
 
     case 'permission': {
-      const granted = !userText || /同意|好|可以|授权|允许|看吧|开始/.test(userText);
+      const granted = u.slots.permissionGranted ?? !userText;
       if (granted) {
         return tag({
           content:
@@ -142,7 +168,7 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
         {
           content: '记下了。日历之外，谁在等你的时间？',
           nextColdStartStep: 'q1',
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
           deposit: 2,
         },
         'q1',
@@ -159,7 +185,7 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
       return tag({
         content: '明白。最近一次觉得「这时间花得值」是什么时候？',
         nextColdStartStep: 'q2',
-        extractClue: userText,
+        extractClue: u.slots.clueText ?? userText,
         deposit: 2,
       });
 
@@ -173,7 +199,7 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
       return tag({
         content: '好。如果下周凭空多出 3 小时，你给谁？',
         nextColdStartStep: 'q3',
-        extractClue: userText,
+        extractClue: u.slots.clueText ?? userText,
         deposit: 2,
       });
 
@@ -187,7 +213,7 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
       return tag({
         content: '好，我消化一下你说的。',
         nextColdStartStep: 'roles-draft',
-        extractClue: userText,
+        extractClue: u.slots.clueText ?? userText,
         deposit: 2,
       });
 
@@ -220,12 +246,17 @@ export function coldStartReply(ctx: MentorContext, userText?: string): MentorRep
   }
 }
 
-function inferRoles(
-  answers: MentorContext['userAnswers'],
-): Omit<Role, 'confirmed'>[] {
+function hintsFromAnswers(answers: MentorContext['userAnswers']): RoleHint[] {
   const blob = [answers.observation, answers.q1, answers.q2, answers.q3]
     .filter(Boolean)
     .join(' ');
+  return inferRoleHints(blob);
+}
+
+function inferRoles(
+  answers: MentorContext['userAnswers'],
+): Omit<Role, 'confirmed'>[] {
+  const hints = hintsFromAnswers(answers);
   const roles: Omit<Role, 'confirmed'>[] = [];
 
   const push = (id: string, name: string, note: string, color: string) => {
@@ -236,32 +267,37 @@ function inferRoles(
 
   push('engineer', '工程师', '日历显示工作占绝大多数时间', '#2F6F5E');
 
-  if (/孩子|儿子|女儿|爸|妈|家|陪/.test(blob)) {
+  if (hints.includes('father')) {
     push('father', '父亲', '有人在日历之外等你', '#B86B3A');
   } else {
     push('family', '家人', '关系需要时间喂养', '#B86B3A');
   }
 
-  if (/跑|健身|锻炼|身体|健康|运动/.test(blob)) {
+  if (hints.includes('health')) {
     push('health', '健康的人', '想把时间投给身体', '#4A7C8C');
-  } else if (/学|读|写|成长|思考/.test(blob)) {
+  } else if (hints.includes('learner')) {
     push('learner', '学习者', '「花得值」往往指向成长', '#6B7A4A');
   } else {
     push('health', '健康的人', '周末空着，却很少写进「为自己」的事', '#4A7C8C');
   }
 
-  if (/伴侣|老婆|爱人|女朋友|妻子/.test(blob)) {
+  if (hints.includes('partner')) {
     push('partner', '伴侣', '亲密关系也是角色', '#8B5E6B');
   }
 
   return roles.slice(0, 4);
 }
 
-export function weeklyReviewReply(ctx: MentorContext, userText?: string): MentorReply {
+export function weeklyReviewReply(
+  ctx: MentorContext,
+  userText?: string,
+  understanding?: UnderstandingResult,
+): MentorReply {
   const act = ctx.weeklyReviewAct;
   const stats = ctx.weeklyStats;
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
   const roles = ctx.roles;
+  const u = resolveUnderstanding(ctx, userText, understanding);
   const tag = (reply: MentorReply, actOverride?: WeeklyReviewAct) =>
     withHabitFocus(
       reply,
@@ -336,7 +372,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
           content: buildConfrontation(ctx, mode),
           sources: ['使命草稿', '日历投入'],
           nextWeeklyAct: 'confrontation',
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
           deposit: 3,
           withdraw: mode === 'assert' ? 4 : 0,
         },
@@ -354,13 +390,14 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
         stats &&
         (stats.q1Ratio >= 60 ||
           (stats.plannedRocks > 0 && stats.landedRocks / stats.plannedRocks < 0.4));
-      if (statsBad && !/根因|紧急|救火/.test(userText)) {
+      const rootMentioned = u.slots.rootCauseMentioned === true || u.topic === 'root_cause';
+      if (statsBad && !rootMentioned) {
         return tag({
           content:
             '记下了。这周很糟的时候，对质不如找根因——是什么在不断产生紧急事务？会议？别人的期待？还是你默认接住所有球？',
           nextWeeklyAct: 'confrontation',
           deposit: 2,
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
         });
       }
       const hungry = findMostHungry(ctx);
@@ -371,7 +408,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
             : '下周哪个角色你最想喂一点时间？',
           nextWeeklyAct: 'role-patrol',
           deposit: 2,
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
         },
         'role-patrol',
       );
@@ -389,7 +426,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
           content:
             '还有磨刀——身体、心智、社交、精神，四维里至少一维下周要有安排。大小可妥协，有无不妥协。你选哪一维？',
           nextWeeklyAct: 'sharpen',
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
           deposit: 2,
         },
         'sharpen',
@@ -408,7 +445,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
             '好。每个角色 1–2 块大石头，一周总共 5–7 块。没进日历的大石头不算数。\n\n说说你的第一块：给哪个角色、什么事、放周几？我帮你写进日历。',
           nextWeeklyAct: 'schedule',
           deposit: 2,
-          extractClue: userText,
+          extractClue: u.slots.clueText ?? userText,
         },
         'schedule',
       );
@@ -420,7 +457,7 @@ export function weeklyReviewReply(ctx: MentorContext, userText?: string): Mentor
           nextWeeklyAct: 'schedule',
         });
       }
-      return tag(buildClosing(ctx, userText), 'closing');
+      return tag(buildClosing(ctx, userText, u), 'closing');
 
     default:
       return tag({
@@ -470,6 +507,19 @@ function buildConfrontation(
   return `你说「${name}」重要，但我看你日历上${weekLabel}在这上面的投入为零。${deferHint}我认为你在用忙碌躲开这件事。我只挑这一处——你怎么回应？`;
 }
 
+function missionTextFromTheme(theme: MissionTheme | null | undefined): string | undefined {
+  if (theme === 'family') {
+    return '家庭优先——在重要关系上持续投入，而不是只在紧急的事上反应';
+  }
+  if (theme === 'health') {
+    return '产能先于产出——身体与心力是其他角色的根基';
+  }
+  if (theme === 'generic') {
+    return '在重要的角色上持续投入，而不是只在紧急的事上反应';
+  }
+  return undefined;
+}
+
 function suggestMissionFromClues(ctx: MentorContext): string | undefined {
   if (ctx.pendingMissionProposal) return undefined;
   const clues = [
@@ -478,20 +528,18 @@ function suggestMissionFromClues(ctx: MentorContext): string | undefined {
     ...(ctx.userAnswers.q2 ? [ctx.userAnswers.q2] : []),
     ...(ctx.userAnswers.hungryRolePlan ? [ctx.userAnswers.hungryRolePlan] : []),
   ].join(' ');
-  if (/家|孩子|父亲|陪/.test(clues)) {
-    return '家庭优先——在重要关系上持续投入，而不是只在紧急的事上反应';
-  }
-  if (/健康|跑|身体|锻炼/.test(clues)) {
-    return '产能先于产出——身体与心力是其他角色的根基';
-  }
-  if (clues.length > 8) {
-    return '在重要的角色上持续投入，而不是只在紧急的事上反应';
-  }
-  return undefined;
+  return missionTextFromTheme(inferMissionTheme(clues));
 }
 
-function buildClosing(ctx: MentorContext, userText?: string): MentorReply {
-  const rock = userText?.trim() || '那件你刚说的事';
+function buildClosing(
+  ctx: MentorContext,
+  userText?: string,
+  understanding?: UnderstandingResult,
+): MentorReply {
+  const rock =
+    understanding?.slots.rock?.title?.trim() ||
+    userText?.trim() ||
+    '那件你刚说的事';
   const hungry = findMostHungry(ctx);
   const mission = suggestMissionFromClues(ctx);
   const missionLine = mission
@@ -511,10 +559,15 @@ function buildClosing(ctx: MentorContext, userText?: string): MentorReply {
   };
 }
 
-export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
-  const { reactive, proactive } = analyzeLanguage(userText);
+export function dailyReply(
+  ctx: MentorContext,
+  userText: string,
+  understanding?: UnderstandingResult,
+): MentorReply {
+  const u = resolveUnderstanding(ctx, userText, understanding);
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
-  const lower = userText.trim();
+  const reactive = u.slots.reactivePhrases ?? [];
+  const proactive = u.slots.proactivePhrases ?? [];
   const tag = (
     reply: MentorReply,
     dailyKind: Parameters<typeof habitFocusForTurn>[0]['dailyKind'],
@@ -524,89 +577,227 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
       habitFocusForTurn({ phase: 'daily', dailyKind }),
     );
 
-  // Accept pending mission proposal
-  if (ctx.pendingMissionProposal && /确认|好的|可以|写入|同意|记下/.test(lower)) {
-    return tag(
-      {
-        content: `好。「${ctx.pendingMissionProposal}」进使命草稿了。活文档，随时可改。`,
-        deposit: 4,
-        clearSilence: true,
-      },
-      'mission-roles',
-    );
-  }
+  switch (u.topic) {
+    case 'mission_accept':
+      if (ctx.pendingMissionProposal && u.slots.missionAccepted !== false) {
+        return tag(
+          {
+            content: `好。「${ctx.pendingMissionProposal}」进使命草稿了。活文档，随时可改。`,
+            deposit: 4,
+            clearSilence: true,
+            acceptMission: true,
+          },
+          'mission-roles',
+        );
+      }
+      break;
 
-  // Fulfill / ask pending weekly promise (下周之约兑现)
-  if (ctx.pendingPromise && !ctx.pendingPromise.asked) {
-    if (
-      /进展|做到了|完成了|兑现|没做成|还没|忘了|延期|上周之约/.test(lower) ||
-      (ctx.pendingPromise.text.length >= 2 &&
-        lower.includes(ctx.pendingPromise.text.slice(0, 2)))
-    ) {
-      const ok = /做到|完成|兑现|有进展|去了|跑了|陪了/.test(lower);
+    case 'promise_progress':
+      if (ctx.pendingPromise && !ctx.pendingPromise.asked) {
+        const ok = u.slots.promiseFulfilled === true;
+        return tag(
+          {
+            content: ok
+              ? `上周之约「${ctx.pendingPromise.text}」——你兑现了。这是情感账户上的一笔存款，我记住了。`
+              : `上周之约「${ctx.pendingPromise.text}」还没落地。账不会消失——这周你打算补在哪一天？`,
+            deposit: ok ? 5 : 1,
+            withdraw: ok ? 0 : 1,
+            markPromiseAsked: true,
+            markPromiseFulfilled: ok,
+            sources: ['上周之约'],
+          },
+          'promise-followup',
+        );
+      }
+      break;
+
+    case 'promise_greeting':
+      if (ctx.pendingPromise && !ctx.pendingPromise.asked) {
+        return tag(
+          {
+            content: `先兑现上周之约——我说过会问你「${ctx.pendingPromise.text}」。进展如何？`,
+            markPromiseAsked: true,
+            sources: ['上周之约'],
+            deposit: 2,
+          },
+          'promise-followup',
+        );
+      }
+      break;
+
+    case 'enter_weekly':
+      if ((ctx.missedWeeklyReviews ?? 0) >= 1) {
+        return tag(
+          {
+            content: `我们有 ${ctx.missedWeeklyReviews} 次周回顾没做，先补上次的账——账不会消失。我已经把观察准备好了。`,
+            phase: 'weekly-review',
+            nextWeeklyAct: 'observation',
+            deposit: 2,
+          },
+          'enter-weekly',
+        );
+      }
       return tag(
         {
-          content: ok
-            ? `上周之约「${ctx.pendingPromise.text}」——你兑现了。这是情感账户上的一笔存款，我记住了。`
-            : `上周之约「${ctx.pendingPromise.text}」还没落地。账不会消失——这周你打算补在哪一天？`,
-          deposit: ok ? 5 : 1,
-          withdraw: ok ? 0 : 1,
-          markPromiseAsked: true,
-          markPromiseFulfilled: ok,
-          sources: ['上周之约'],
+          content: '好。我已经把这周的数据看过了——我们直接开始。',
+          phase: 'weekly-review',
+          nextWeeklyAct: 'observation',
         },
-        'promise-followup',
+        'enter-weekly',
       );
-    }
-    // Only auto-open the promise on an explicit check-in greeting
-    if (/^(在吗|你好|嗨|来了|聊聊|有空|导师)/.test(lower)) {
+
+    case 'missed_review_nudge':
       return tag(
         {
-          content: `先兑现上周之约——我说过会问你「${ctx.pendingPromise.text}」。进展如何？`,
-          markPromiseAsked: true,
-          sources: ['上周之约'],
+          content: `我们 ${ctx.missedWeeklyReviews} 周没正经聊了。不追杀，但账还在——要不要先用 10 分钟补一次简短回顾？说「开始周回顾」就行。`,
+          deposit: 1,
+        },
+        'enter-weekly',
+      );
+
+    case 'pushback':
+      return tag(
+        {
+          content:
+            '你认真反驳，说明这碰到真的东西了。我不收回观察，但我想听你的版本——你认为我看错了哪一步？',
+          deposit: 3,
+        },
+        'pushback',
+      );
+
+    case 'silence':
+      return tag(
+        {
+          content: '好。我退到周回顾再说。你喊我之前，我不多嘴。',
+          withdraw: 2,
+          enterSilence: true,
+        },
+        'silence',
+      );
+
+    case 'mission_propose': {
+      if (!ctx.pendingMissionProposal) {
+        const proposal =
+          missionTextFromTheme(u.slots.missionTheme) ??
+          suggestMissionFromClues(ctx) ??
+          '在重要的角色上持续投入，而不是只在紧急的事上反应';
+        return tag(
+          {
+            content: `最近几次对话里，我听到一个方向：「${proposal}」。要不要进你的使命草稿？回「确认」即可。`,
+            proposeMission: proposal,
+            deposit: 3,
+          },
+          'mission-roles',
+        );
+      }
+      const roleListPending =
+        ctx.roles.length > 0
+          ? ctx.roles.map((r) => r.name).join('、')
+          : '还在草稿里';
+      return tag(
+        {
+          content: `你目前的角色草稿是：${roleListPending}。使命不是一次写完的——最近有没有哪件事，让你想改其中一个？`,
           deposit: 2,
         },
-        'promise-followup',
+        'mission-roles',
       );
     }
+
+    case 'mission_talk': {
+      const roleList =
+        ctx.roles.length > 0
+          ? ctx.roles.map((r) => r.name).join('、')
+          : '还在草稿里';
+      return tag(
+        {
+          content: `你目前的角色草稿是：${roleList}。使命不是一次写完的——最近有没有哪件事，让你想改其中一个？`,
+          deposit: 2,
+        },
+        'mission-roles',
+      );
+    }
+
+    case 'reactive_language':
+      if (reactive.length > 0 && mode !== 'coach') {
+        return tag(
+          {
+            content: `你刚说「${reactive[0]}」。如果改成「我选择……」，后半句会变成什么？`,
+            extractClue: u.slots.clueText ?? userText,
+            deposit: 1,
+          },
+          'reactive-language',
+        );
+      }
+      break;
+
+    case 'proactive_language':
+      if (proactive.length > 0) {
+        return tag(
+          {
+            content: `「${proactive[0]}」——这是主动的声音。具体下一步是什么？要不要写进日历？`,
+            deposit: 3,
+            extractClue: u.slots.clueText ?? userText,
+          },
+          'proactive-language',
+        );
+      }
+      break;
+
+    case 'firefighting': {
+      const analysis = analyzeCalendar(ctx.events, 1);
+      const commits = upcomingCommitmentsToOthers(ctx.todos ?? [], 3);
+      const commitLine =
+        commits.length > 0
+          ? `另外，待办里还有对别人的承诺「${commits[0].title}」临近。`
+          : '';
+      return tag(
+        {
+          content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。${commitLine}`,
+          sources: ['系统日历 · 近 1 周', ...(commits.length ? ['待办/提醒'] : [])],
+          deposit: 2,
+        },
+        'firefighting',
+      );
+    }
+
+    case 'big_rocks':
+      return tag(
+        {
+          content:
+            '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
+          deposit: 1,
+        },
+        'big-rocks',
+      );
+
+    case 'todos': {
+      const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
+      if (deferred.length > 0) {
+        return tag(
+          {
+            content: `我看待办里「${deferred[0].title}」已推迟 ${deferred[0].deferredCount} 次——反复推迟的往往是第二象限。这周要不要给它一个日历块？`,
+            sources: ['待办/提醒'],
+            deposit: 2,
+            extractClue: deferred[0].title,
+          },
+          'big-rocks',
+        );
+      }
+      return tag(
+        {
+          content:
+            '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
+          deposit: 1,
+        },
+        'big-rocks',
+      );
+    }
+
+    default:
+      break;
   }
 
-  // Skipped weekly-review debt
-  if ((ctx.missedWeeklyReviews ?? 0) >= 1 && /周回顾|开始回顾|聊聊这周|来了/.test(lower)) {
-    return tag(
-      {
-        content: `我们有 ${ctx.missedWeeklyReviews} 次周回顾没做，先补上次的账——账不会消失。我已经把观察准备好了。`,
-        phase: 'weekly-review',
-        nextWeeklyAct: 'observation',
-        deposit: 2,
-      },
-      'enter-weekly',
-    );
-  }
-
-  if ((ctx.missedWeeklyReviews ?? 0) >= 2 && mode !== 'coach' && lower.length < 30) {
-    return tag(
-      {
-        content: `我们 ${ctx.missedWeeklyReviews} 周没正经聊了。不追杀，但账还在——要不要先用 10 分钟补一次简短回顾？说「开始周回顾」就行。`,
-        deposit: 1,
-      },
-      'enter-weekly',
-    );
-  }
-
-  if (/周回顾|开始回顾|周日回顾|回顾一下/.test(lower)) {
-    return tag(
-      {
-        content: '好。我已经把这周的数据看过了——我们直接开始。',
-        phase: 'weekly-review',
-        nextWeeklyAct: 'observation',
-      },
-      'enter-weekly',
-    );
-  }
-
-  if (/你不懂|胡说|别说了|烦|滚|闭嘴|你错了/.test(lower)) {
+  if (u.intent === 'pushback') {
     return tag(
       {
         content:
@@ -616,8 +807,7 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
       'pushback',
     );
   }
-
-  if (/不想聊|以后再说|别烦我/.test(lower)) {
+  if (u.intent === 'avoid') {
     return tag(
       {
         content: '好。我退到周回顾再说。你喊我之前，我不多嘴。',
@@ -628,109 +818,12 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
     );
   }
 
-  // Propose mission from accumulated clues during daily chat
-  if (
-    !ctx.pendingMissionProposal &&
-    (ctx.languageStats?.proactiveCount ?? 0) + (ctx.messages.length > 12 ? 1 : 0) >= 2 &&
-    /使命|价值观|重要的是|我是谁|家庭优先/.test(lower)
-  ) {
-    const proposal =
-      suggestMissionFromClues(ctx) ??
-      '在重要的角色上持续投入，而不是只在紧急的事上反应';
-    return tag(
-      {
-        content: `最近几次对话里，我听到一个方向：「${proposal}」。要不要进你的使命草稿？回「确认」即可。`,
-        proposeMission: proposal,
-        deposit: 3,
-      },
-      'mission-roles',
-    );
-  }
-
-  if (reactive.length > 0 && mode !== 'coach') {
-    return tag(
-      {
-        content: `你刚说「${reactive[0]}」。如果改成「我选择……」，后半句会变成什么？`,
-        extractClue: userText,
-        deposit: 1,
-      },
-      'reactive-language',
-    );
-  }
-
-  if (proactive.length > 0) {
-    return tag(
-      {
-        content: `「${proactive[0]}」——这是主动的声音。具体下一步是什么？要不要写进日历？`,
-        deposit: 3,
-        extractClue: userText,
-      },
-      'proactive-language',
-    );
-  }
-
-  if (/使命|角色|重要的是|我是谁/.test(lower)) {
-    const roleList =
-      ctx.roles.length > 0
-        ? ctx.roles.map((r) => r.name).join('、')
-        : '还在草稿里';
-    return tag(
-      {
-        content: `你目前的角色草稿是：${roleList}。使命不是一次写完的——最近有没有哪件事，让你想改其中一个？`,
-        deposit: 2,
-      },
-      'mission-roles',
-    );
-  }
-
-  if (/忙|没时间|太多会|救火|加班/.test(lower)) {
-    const analysis = analyzeCalendar(ctx.events, 1);
-    const commits = upcomingCommitmentsToOthers(ctx.todos ?? [], 3);
-    const commitLine =
-      commits.length > 0
-        ? `另外，待办里还有对别人的承诺「${commits[0].title}」临近。`
-        : '';
-    return tag(
-      {
-        content: `我看你这周日历上，会和紧急事项仍然很密（近一周约 ${analysis.totalMeetings} 个会相关块）。是什么在不断产生紧急事务？根因往往比再挤一小时更值钱。${commitLine}`,
-        sources: ['系统日历 · 近 1 周', ...(commits.length ? ['待办/提醒'] : [])],
-        deposit: 2,
-      },
-      'firefighting',
-    );
-  }
-
-  if (/大石头|安排|计划|下周/.test(lower)) {
-    return tag(
-      {
-        content:
-          '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
-        deposit: 1,
-      },
-      'big-rocks',
-    );
-  }
-
-  // Surface chronically deferred todos when relevant
-  const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
-  if (deferred.length > 0 && /推迟|一直没|todo|待办|忘了/.test(lower)) {
-    return tag(
-      {
-        content: `我看待办里「${deferred[0].title}」已推迟 ${deferred[0].deferredCount} 次——反复推迟的往往是第二象限。这周要不要给它一个日历块？`,
-        sources: ['待办/提醒'],
-        deposit: 2,
-        extractClue: deferred[0].title,
-      },
-      'big-rocks',
-    );
-  }
-
   if (mode === 'assert') {
     return tag(
       {
         content: `我听到了。在你说的这件事里，哪个选择是你主动做的，哪个是你默认接受的？`,
         deposit: 1,
-        extractClue: userText,
+        extractClue: u.slots.clueText ?? userText,
       },
       'reactive-language',
     );
@@ -740,18 +833,27 @@ export function dailyReply(ctx: MentorContext, userText: string): MentorReply {
     {
       content: `继续说。我在听——尤其是你反复提到的那个主题。`,
       deposit: 1,
-      extractClue: userText,
+      extractClue: u.slots.clueText ?? userText,
     },
     'generic',
   );
 }
 
-export function respond(ctx: MentorContext, userText?: string): MentorReply {
+/**
+ * Mentor state machine. Stage B: consumes structured `understanding`
+ * (model or local). Without it, falls back to `understandLocal` (degrade).
+ */
+export function respond(
+  ctx: MentorContext,
+  userText?: string,
+  understanding?: UnderstandingResult,
+): MentorReply {
+  const u = resolveUnderstanding(ctx, userText, understanding);
   if (ctx.phase === 'cold-start' && ctx.coldStartStep !== 'done') {
-    return coldStartReply(ctx, userText);
+    return coldStartReply(ctx, userText, u);
   }
   if (ctx.phase === 'weekly-review' && ctx.weeklyReviewAct !== 'done') {
-    return weeklyReviewReply(ctx, userText);
+    return weeklyReviewReply(ctx, userText, u);
   }
   if (!userText) {
     return withHabitFocus(
@@ -759,5 +861,5 @@ export function respond(ctx: MentorContext, userText?: string): MentorReply {
       [],
     );
   }
-  return dailyReply(ctx, userText);
+  return dailyReply(ctx, userText, u);
 }

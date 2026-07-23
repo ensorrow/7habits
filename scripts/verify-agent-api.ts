@@ -161,6 +161,77 @@ async function main() {
     }
   }
 
+  {
+    const { res, body } = await jsonFetch('/api/mentor/turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: {
+          ...coldStartCtx,
+          coldStartStep: 'permission',
+        },
+        userText: '同意，看我的日历',
+        useAgent: false,
+      }),
+    });
+    const turn = body as {
+      source?: string;
+      understandingSource?: string;
+      understanding?: { topic?: string; slots?: { permissionGranted?: boolean } };
+      reply?: { nextColdStartStep?: string };
+    };
+    if (
+      res.ok &&
+      turn.source === 'local' &&
+      turn.understandingSource === 'local' &&
+      turn.understanding?.topic === 'permission' &&
+      turn.understanding?.slots?.permissionGranted === true &&
+      turn.reply?.nextColdStartStep === 'observation'
+    ) {
+      pass('turn Stage B local understanding (permission)', 'granted → observation');
+    } else {
+      fail('turn Stage B local understanding (permission)', JSON.stringify(body));
+    }
+  }
+
+  {
+    const { res, body } = await jsonFetch('/api/mentor/understand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: {
+          ...coldStartCtx,
+          phase: 'daily',
+          coldStartStep: 'done',
+          weekCount: 3,
+          emotionalAccount: {
+            level: 'trusted',
+            balance: 80,
+            deposits: 5,
+            withdrawals: 0,
+            silenceMode: false,
+          },
+        },
+        userText: '你不懂我，胡说',
+        useAgent: false,
+      }),
+    });
+    const out = body as {
+      understandingSource?: string;
+      understanding?: { topic?: string; intent?: string };
+    };
+    if (
+      res.ok &&
+      out.understandingSource === 'local' &&
+      out.understanding?.topic === 'pushback' &&
+      out.understanding?.intent === 'pushback'
+    ) {
+      pass('understand endpoint local pushback', out.understanding.topic);
+    } else {
+      fail('understand endpoint local pushback', JSON.stringify(body));
+    }
+  }
+
   const livePat =
     process.env.QODER_PERSONAL_ACCESS_TOKEN?.trim() || process.env.QODER_PAT?.trim();
   if (livePat) {

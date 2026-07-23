@@ -152,3 +152,13 @@ export interface MentorState {
   lastInterventionAt?: string;
   pendingIntervention?: Intervention;
 }
+
+export type {
+  UserIntent,
+  ConversationTopic,
+  RoleHint,
+  MissionTheme,
+  RockSlots,
+  UnderstandingSlots,
+  UnderstandingResult,
+} from './understanding';

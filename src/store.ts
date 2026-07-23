@@ -36,6 +36,7 @@ import {
 } from './services/emotionalAccount';
 import { mergeLanguageStats } from './services/language';
 import { respond, type MentorContext } from './services/mentor';
+import { understandLocal } from './services/understanding';
 import {
   fetchMentorStatus,
   requestMentorTurn,
@@ -169,13 +170,8 @@ function applyReply(
   if (reply.proposeMission) {
     pendingMissionProposal = reply.proposeMission;
   }
-  // Accept mission when reply confirms after user said 确认
-  if (
-    state.pendingMissionProposal &&
-    userText &&
-    /确认|好的|可以|写入|同意|记下/.test(userText) &&
-    reply.content.includes('使命草稿')
-  ) {
+  // Accept mission when state machine marks acceptMission (Stage B understanding)
+  if (reply.acceptMission && state.pendingMissionProposal) {
     if (!statements.includes(state.pendingMissionProposal)) {
       statements = [...statements, state.pendingMissionProposal];
     }
@@ -452,8 +448,8 @@ export const useAppStore = create<AppStore>()(
         let answerKey: keyof MentorContext['userAnswers'] | undefined;
         if (s.mentorPhase === 'cold-start') {
           if (s.coldStartStep === 'permission') {
-            const granted = /同意|好|可以|授权|允许|看吧|开始/.test(trimmed);
-            get().setCalendarAuth(granted);
+            const preview = understandLocal(buildCtx(get()), trimmed);
+            get().setCalendarAuth(preview.slots.permissionGranted === true);
           }
           if (s.coldStartStep === 'observation') answerKey = 'observation';
           if (s.coldStartStep === 'q1') answerKey = 'q1';
@@ -466,8 +462,13 @@ export const useAppStore = create<AppStore>()(
           if (s.weeklyReviewAct === 'role-patrol') answerKey = 'hungryRolePlan';
         }
 
-        if (/开始周回顾|周回顾/.test(trimmed) && s.mentorPhase === 'daily') {
-          get().startWeeklyReview();
+        // Enter weekly review before the turn so observation is spoken in-session
+        // (same as Stage A; understanding replaces the 周回顾 regex).
+        if (s.mentorPhase === 'daily') {
+          const preview = understandLocal(buildCtx(get()), trimmed);
+          if (preview.topic === 'enter_weekly') {
+            get().startWeeklyReview();
+          }
         }
 
         await runMentorTurn(get, set, trimmed, answerKey);

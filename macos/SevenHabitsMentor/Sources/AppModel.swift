@@ -154,8 +154,9 @@ final class AppModel: ObservableObject {
   private func startBackgroundWatchers() {
     if let ek = calendarStore as? EventKitCalendarStore {
       ek.startObservingChanges { [weak self] in
+        guard let self else { return }
         Task { @MainActor in
-          await self?.handleCalendarStoreChanged()
+          await self.handleCalendarStoreChanged()
         }
       }
     }
@@ -165,8 +166,9 @@ final class AppModel: ObservableObject {
       withTimeInterval: Self.interventionScanInterval,
       repeats: true
     ) { [weak self] _ in
+      guard let self else { return }
       Task { @MainActor in
-        await self?.onPeriodicScan()
+        await self.onPeriodicScan()
       }
     }
     if let interventionTimer {
