@@ -6,8 +6,32 @@ import SevenHabitsCore
 public final class EventKitCalendarStore: CalendarProviding, @unchecked Sendable {
   private let store = EKEventStore()
   private let defaultsKey = "sevenhabits.defaultCalendarId"
+  private var changeObserver: NSObjectProtocol?
 
   public init() {}
+
+  deinit {
+    stopObservingChanges()
+  }
+
+  /// Observe EventKit mutations so the mentor can re-scan interventions.
+  public func startObservingChanges(_ handler: @escaping @Sendable () -> Void) {
+    stopObservingChanges()
+    changeObserver = NotificationCenter.default.addObserver(
+      forName: .EKEventStoreChanged,
+      object: store,
+      queue: .main
+    ) { _ in
+      handler()
+    }
+  }
+
+  public func stopObservingChanges() {
+    if let changeObserver {
+      NotificationCenter.default.removeObserver(changeObserver)
+      self.changeObserver = nil
+    }
+  }
 
   public var isAuthorized: Bool {
     get async {

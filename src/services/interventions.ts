@@ -243,7 +243,13 @@ function checkP2(input: InterventionInput): Intervention | null {
     }
   }
 
-  const doneRock = input.rocks.find((r) => r.status === 'done');
+  const doneRock = input.rocks.find((r) => {
+    if (r.status !== 'done') return false;
+    if (!r.scheduledEnd) return true;
+    const hoursAgo = (Date.now() - new Date(r.scheduledEnd).getTime()) / 3600000;
+    // Only praise recent landings — avoid re-praising every historical done rock on scan.
+    return hoursAgo >= 0 && hoursAgo < 36;
+  });
   if (doneRock) {
     return makeIntervention({
       id: `int-p2-done-${doneRock.id}`,

@@ -68,4 +68,11 @@ xattr -dr com.apple.quarantine SevenHabitsMentor.app
 
 菜单栏 App 仍依赖本机导师 API：仓库根目录 `npm run agent`（默认 `http://127.0.0.1:8787`）。
 
+启动后会：
+
+- **每 15 分钟**定时扫描干预
+- 监听 **`EKEventStoreChanged`**（日历变更后约 1.5s debounce 再扫）
+- 对账大石头：EventKit 里被删/被会议覆盖 → `swallowed`；时段已过且仍在 → `done`
+- 周回顾的大石头兑现率来自真实 `rocks`，不再硬编码 5/3
+
 > Cursor Cloud / Linux **无法**编译或运行本层（无 Swift/EventKit）。L1/L2 仍在 Linux 验证；L3 包由 GitHub Actions 的 `macos-14` runner 产出。

@@ -25,6 +25,7 @@ import {
   computeWeeklyStats,
   generateMockCalendar,
   generateMockTodos,
+  reconcileRockStatuses,
 } from './services/calendar';
 import {
   createAccount,
@@ -477,12 +478,14 @@ export const useAppStore = create<AppStore>()(
       startWeeklyReview: () => {
         const s = get();
         const roleIds = s.roles.map((r) => r.id);
-        const stats = computeWeeklyStats(s.events, roleIds, new Date());
+        const rocks = reconcileRockStatuses(s.rocks, s.events);
+        const stats = computeWeeklyStats(s.events, roleIds, new Date(), rocks);
         stats.language = s.languageStats;
         set({
           mentorPhase: 'weekly-review',
           weeklyReviewAct: 'observation',
           weeklyStats: stats,
+          rocks,
           view: 'chat',
         });
       },
@@ -540,10 +543,15 @@ export const useAppStore = create<AppStore>()(
         if (s.pendingIntervention && !s.pendingIntervention.acknowledged) return;
         if (s.mentorPhase === 'cold-start') return;
 
+        const rocks = reconcileRockStatuses(s.rocks, s.events);
+        if (rocks.some((r, i) => r.status !== s.rocks[i]?.status)) {
+          set({ rocks });
+        }
+
         const roleIds = s.roles.map((r) => r.id);
         const hit = evaluateInterventions({
           events: s.events,
-          rocks: s.rocks,
+          rocks,
           roles: s.roles,
           promises: s.promises,
           todos: s.todos,

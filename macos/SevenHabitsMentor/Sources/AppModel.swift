@@ -63,6 +63,11 @@ final class AppModel: ObservableObject {
 
   private let calendarStore: any CalendarProviding
   private let api: MentorAPIClient
+  private var interventionTimer: Timer?
+  private var calendarChangeTask: Task<Void, Never>?
+
+  /// Periodic intervention scan interval (seconds).
+  private static let interventionScanInterval: TimeInterval = 15 * 60
 
   init(
     calendarStore: (any CalendarProviding)? = nil,
@@ -90,10 +95,60 @@ final class AppModel: ObservableObject {
     if calendarAuthorized {
       try? await reloadFromEventKit()
     }
+    startBackgroundWatchers()
     if messages.isEmpty {
       await advanceMentor(userText: nil)
     } else {
       await scanInterventions()
+    }
+  }
+
+  /// Timer + EventKit change notifications — without these, interventions only fire from settings.
+  private func startBackgroundWatchers() {
+    if let ek = calendarStore as? EventKitCalendarStore {
+      ek.startObservingChanges { [weak self] in
+        Task { @MainActor in
+          await self?.handleCalendarStoreChanged()
+        }
+      }
+    }
+
+    interventionTimer?.invalidate()
+    interventionTimer = Timer.scheduledTimer(
+      withTimeInterval: Self.interventionScanInterval,
+      repeats: true
+    ) { [weak self] _ in
+      Task { @MainActor in
+        await self?.onPeriodicScan()
+      }
+    }
+    if let interventionTimer {
+      RunLoop.main.add(interventionTimer, forMode: .common)
+    }
+  }
+
+  private func handleCalendarStoreChanged() async {
+    calendarChangeTask?.cancel()
+    calendarChangeTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 1_500_000_000)
+      guard !Task.isCancelled else { return }
+      await onPeriodicScan()
+    }
+  }
+
+  private func onPeriodicScan() async {
+    if calendarAuthorized {
+      try? await reloadFromEventKit()
+    }
+    applyRockReconciliation()
+    await scanInterventions()
+  }
+
+  private func applyRockReconciliation() {
+    let next = RockReconciler.reconcile(rocks: rocks, events: events)
+    if next != rocks {
+      rocks = next
+      persist()
     }
   }
 
@@ -131,9 +186,11 @@ final class AppModel: ObservableObject {
     let start = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: end) ?? end
     events = try await calendarStore.loadEvents(from: start, to: end)
     todos = (try? await calendarStore.loadReminders()) ?? []
+    applyRockReconciliation()
     weeklyStats = CalendarAnalyzer.computeWeeklyStats(
       events: events,
-      roleIds: roles.map(\.id)
+      roleIds: roles.map(\.id),
+      rocks: rocks
     )
   }
 
@@ -197,7 +254,12 @@ final class AppModel: ObservableObject {
   func startWeeklyReview() {
     phase = .weeklyReview
     weeklyReviewAct = .observation
-    weeklyStats = CalendarAnalyzer.computeWeeklyStats(events: events, roleIds: roles.map(\.id))
+    applyRockReconciliation()
+    weeklyStats = CalendarAnalyzer.computeWeeklyStats(
+      events: events,
+      roleIds: roles.map(\.id),
+      rocks: rocks
+    )
     if var stats = weeklyStats {
       stats.language = languageStats
       weeklyStats = stats
@@ -280,12 +342,20 @@ final class AppModel: ObservableObject {
         isBigRock: true
       )
       events.append(event)
+      let weekFormatter = ISO8601DateFormatter()
+      weekFormatter.formatOptions = [.withFullDate]
+      var mondayComponents = Calendar.current.dateComponents(
+        [.yearForWeekOfYear, .weekOfYear],
+        from: start
+      )
+      mondayComponents.weekday = 2
+      let monday = Calendar.current.date(from: mondayComponents) ?? start
       rocks.append(
         BigRock(
           id: event.id,
           roleId: roleId,
           title: title,
-          weekOf: weeklyStats?.weekOf ?? ISO8601.string(from: Date()),
+          weekOf: weeklyStats?.weekOf ?? weekFormatter.string(from: monday),
           scheduledStart: event.start,
           scheduledEnd: event.end,
           status: "scheduled"
@@ -354,6 +424,8 @@ final class AppModel: ObservableObject {
       await refreshAgent()
       guard agentReachable else { return }
     }
+
+    applyRockReconciliation()
 
     let starve = CalendarAnalyzer.roleStarveWeeks(events: events, roleIds: roles.map(\.id))
     let input = InterventionEvalInput(

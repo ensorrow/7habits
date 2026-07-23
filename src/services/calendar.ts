@@ -1,5 +1,5 @@
 import { addDays, addHours, formatISO, startOfWeek, subDays, subWeeks } from 'date-fns';
-import type { CalendarEvent, TodoItem, WeeklyStats } from '../types';
+import type { BigRock, CalendarEvent, TodoItem, WeeklyStats } from '../types';
 
 const ROLE_COLORS = {
   engineer: '#2F6F5E',
@@ -244,13 +244,25 @@ export function analyzeCalendar(events: CalendarEvent[], weeks = 4): {
   };
 }
 
+function rockBelongsToWeek(rock: BigRock, start: Date, end: Date, weekOf: string): boolean {
+  const rockWeek = rock.weekOf.slice(0, 10);
+  if (rockWeek === weekOf || rock.weekOf.startsWith(weekOf)) return true;
+  if (rock.scheduledStart) {
+    const d = new Date(rock.scheduledStart);
+    return d >= start && d < end;
+  }
+  return false;
+}
+
 export function computeWeeklyStats(
   events: CalendarEvent[],
   roleIds: string[],
   weekOf: Date,
+  rocks: BigRock[] = [],
 ): WeeklyStats {
   const start = startOfWeek(weekOf, { weekStartsOn: 1 });
   const end = addDays(start, 7);
+  const weekOfStr = formatISO(start, { representation: 'date' });
   const weekEvents = events.filter((e) => {
     const s = new Date(e.start);
     return s >= start && s < end;
@@ -271,12 +283,16 @@ export function computeWeeklyStats(
     }
   }
 
+  const weekRocks = rocks.filter((r) => rockBelongsToWeek(r, start, end, weekOfStr));
+  const plannedRocks = weekRocks.length;
+  const landedRocks = weekRocks.filter((r) => r.status === 'done').length;
+
   return {
-    weekOf: formatISO(start, { representation: 'date' }),
+    weekOf: weekOfStr,
     roleHours,
     totalHours: Math.round(totalHours * 10) / 10,
-    plannedRocks: 5,
-    landedRocks: 3,
+    plannedRocks,
+    landedRocks,
     q1Ratio: totalHours > 0 ? Math.round((q1Hours / totalHours) * 100) : 0,
     language: {
       reactiveCount: 0,
@@ -285,6 +301,56 @@ export function computeWeeklyStats(
       proactivePhrases: [],
     },
   };
+}
+
+/**
+ * Reconcile big-rock statuses against live calendar evidence.
+ * Deleted block or meeting overlap → swallowed; past scheduled end still present → done.
+ */
+export function reconcileRockStatuses(
+  rocks: BigRock[],
+  events: CalendarEvent[],
+  now = new Date(),
+): BigRock[] {
+  const byId = new Map(events.map((e) => [e.id, e]));
+
+  return rocks.map((rock) => {
+    if (rock.status !== 'scheduled' && rock.status !== 'planned') return rock;
+    if (!rock.scheduledStart || !rock.scheduledEnd) return rock;
+
+    const rs = new Date(rock.scheduledStart);
+    const re = new Date(rock.scheduledEnd);
+
+    const matching =
+      byId.get(rock.id) ??
+      events.find((e) => {
+        if (!e.isBigRock) return false;
+        const es = new Date(e.start);
+        const ee = new Date(e.end);
+        const overlaps = es < re && ee > rs;
+        const titleHit = e.title.includes(rock.title) || rock.title.length === 0;
+        return overlaps && titleHit;
+      });
+
+    const meetingConflict = events.some((e) => {
+      if (e.isBigRock) return false;
+      if (e.category !== 'meeting') return false;
+      const es = new Date(e.start);
+      const ee = new Date(e.end);
+      return es < re && ee > rs;
+    });
+
+    if (!matching && rock.status === 'scheduled') {
+      return { ...rock, status: 'swallowed' };
+    }
+    if (meetingConflict && rock.status === 'scheduled') {
+      return { ...rock, status: 'swallowed' };
+    }
+    if (matching && re.getTime() <= now.getTime()) {
+      return { ...rock, status: 'done' };
+    }
+    return rock;
+  });
 }
 
 export function findHungryRoles(

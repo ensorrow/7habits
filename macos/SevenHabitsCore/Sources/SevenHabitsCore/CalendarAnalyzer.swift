@@ -7,8 +7,13 @@ public enum CalendarAnalyzer {
   }
 
   /// Mirrors `analyzeCalendar` in `src/services/calendar.ts`.
-  public static func analyze(_ events: [CalendarEvent], weeks: Int = 4, now: Date = Date()) -> CalendarAnalysis {
-    let calendar = Calendar.current
+  /// Pass an explicit `calendar` in tests so hour/weekday assertions are timezone-stable.
+  public static func analyze(
+    _ events: [CalendarEvent],
+    weeks: Int = 4,
+    now: Date = Date(),
+    calendar: Calendar = .current
+  ) -> CalendarAnalysis {
     let cutoff = calendar.date(byAdding: .weekOfYear, value: -weeks, to: now) ?? now
     let recent = events.filter { event in
       guard let start = ISO8601.date(from: event.start) else { return false }
@@ -55,9 +60,10 @@ public enum CalendarAnalyzer {
   public static func computeWeeklyStats(
     events: [CalendarEvent],
     roleIds: [String],
-    weekOf: Date = Date()
+    weekOf: Date = Date(),
+    rocks: [BigRock] = [],
+    calendar: Calendar = .current
   ) -> WeeklyStats {
-    let calendar = Calendar.current
     var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekOf)
     components.weekday = 2 // Monday
     let start = calendar.date(from: components) ?? weekOf
@@ -85,13 +91,19 @@ public enum CalendarAnalyzer {
 
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withFullDate]
+    formatter.timeZone = calendar.timeZone
+    let weekOfString = formatter.string(from: start)
+
+    let weekRocks = rocks.filter { rockBelongsToWeek($0, start: start, end: end, weekOf: weekOfString) }
+    let plannedRocks = weekRocks.count
+    let landedRocks = weekRocks.filter { $0.status == "done" }.count
 
     return WeeklyStats(
-      weekOf: formatter.string(from: start),
+      weekOf: weekOfString,
       roleHours: roleHours,
       totalHours: (totalHours * 10).rounded() / 10,
-      plannedRocks: 5,
-      landedRocks: 3,
+      plannedRocks: plannedRocks,
+      landedRocks: landedRocks,
       q1Ratio: totalHours > 0 ? Int(((q1Hours / totalHours) * 100).rounded()) : 0,
       language: LanguageStats()
     )
@@ -114,15 +126,20 @@ public enum CalendarAnalyzer {
     events: [CalendarEvent],
     roleIds: [String],
     weeks: Int = 4,
-    now: Date = Date()
+    now: Date = Date(),
+    calendar: Calendar = .current
   ) -> [String: Int] {
     var result: [String: Int] = [:]
-    let calendar = Calendar.current
     for id in roleIds {
       var streak = 0
       for w in 0..<weeks {
         let weekOf = calendar.date(byAdding: .weekOfYear, value: -w, to: now) ?? now
-        let stats = computeWeeklyStats(events: events, roleIds: roleIds, weekOf: weekOf)
+        let stats = computeWeeklyStats(
+          events: events,
+          roleIds: roleIds,
+          weekOf: weekOf,
+          calendar: calendar
+        )
         if (stats.roleHours[id] ?? 0) < 0.5 {
           streak += 1
         } else {
@@ -132,5 +149,91 @@ public enum CalendarAnalyzer {
       result[id] = streak
     }
     return result
+  }
+
+  /// Rock belongs to a week by `weekOf` date prefix or scheduled start falling in range.
+  public static func rockBelongsToWeek(
+    _ rock: BigRock,
+    start: Date,
+    end: Date,
+    weekOf: String
+  ) -> Bool {
+    let rockWeek = String(rock.weekOf.prefix(10))
+    if rockWeek == weekOf || rock.weekOf.hasPrefix(weekOf) {
+      return true
+    }
+    if let s = rock.scheduledStart, let d = ISO8601.date(from: s) {
+      return d >= start && d < end
+    }
+    return false
+  }
+}
+
+/// Reconcile big-rock statuses against live calendar evidence.
+/// - Deleted EventKit block → `swallowed`
+/// - Meeting overlap on the scheduled slot → `swallowed`
+/// - Scheduled end passed and event still present → `done`
+public enum RockReconciler {
+  public static func reconcile(
+    rocks: [BigRock],
+    events: [CalendarEvent],
+    now: Date = Date()
+  ) -> [BigRock] {
+    let byId = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+
+    return rocks.map { rock in
+      var r = rock
+      guard r.status == "scheduled" || r.status == "planned" else { return r }
+      guard let startStr = r.scheduledStart,
+            let endStr = r.scheduledEnd,
+            let rs = ISO8601.date(from: startStr),
+            let re = ISO8601.date(from: endStr)
+      else { return r }
+
+      let matching = matchingEvent(for: r, start: rs, end: re, byId: byId, events: events)
+      let meetingConflict = events.contains { e in
+        if e.isBigRock == true { return false }
+        if e.category != .meeting { return false }
+        guard let es = ISO8601.date(from: e.start), let ee = ISO8601.date(from: e.end) else {
+          return false
+        }
+        return es < re && ee > rs
+      }
+
+      if matching == nil, r.status == "scheduled" {
+        r.status = "swallowed"
+        return r
+      }
+
+      if meetingConflict, r.status == "scheduled" {
+        r.status = "swallowed"
+        return r
+      }
+
+      if matching != nil, re <= now {
+        r.status = "done"
+      }
+
+      return r
+    }
+  }
+
+  private static func matchingEvent(
+    for rock: BigRock,
+    start: Date,
+    end: Date,
+    byId: [String: CalendarEvent],
+    events: [CalendarEvent]
+  ) -> CalendarEvent? {
+    if let e = byId[rock.id] { return e }
+    return events.first { e in
+      guard e.isBigRock == true else { return false }
+      guard let es = ISO8601.date(from: e.start), let ee = ISO8601.date(from: e.end) else {
+        return false
+      }
+      let overlaps = es < end && ee > start
+      let titleHit = e.title.contains(rock.title) || rock.title.isEmpty
+      return overlaps && titleHit
+    }
   }
 }
