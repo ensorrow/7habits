@@ -31,6 +31,14 @@ final class EventClassifierTests: XCTestCase {
 }
 
 final class CalendarAnalyzerTests: XCTestCase {
+  /// Fixed UTC calendar so Zulu fixture hours are timezone-stable on any Mac.
+  private var utcCalendar: Calendar {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+    cal.firstWeekday = 2
+    return cal
+  }
+
   func testAnalyzeCountsMeetingsAndLateNights() {
     let events: [CalendarEvent] = [
       CalendarEvent(
@@ -52,11 +60,92 @@ final class CalendarAnalyzerTests: XCTestCase {
     ]
 
     let now = ISO8601.date(from: "2026-07-22T12:00:00.000Z")!
-    let analysis = CalendarAnalyzer.analyze(events, weeks: 4, now: now)
+    let analysis = CalendarAnalyzer.analyze(events, weeks: 4, now: now, calendar: utcCalendar)
     XCTAssertEqual(analysis.totalMeetings, 1)
     XCTAssertEqual(analysis.lateNightCount, 1)
     XCTAssertTrue(analysis.observation.contains("1 个会"))
     XCTAssertEqual(analysis.roleHours["engineer"] ?? 0, 2.5, accuracy: 0.01)
+  }
+
+  func testComputeWeeklyStatsUsesRealRocks() {
+    let weekOf = ISO8601.date(from: "2026-07-22T12:00:00.000Z")!
+    let rocks: [BigRock] = [
+      BigRock(
+        id: "r1",
+        roleId: "health",
+        title: "晨跑",
+        weekOf: "2026-07-20",
+        scheduledStart: "2026-07-21T07:00:00.000Z",
+        scheduledEnd: "2026-07-21T08:00:00.000Z",
+        status: "done"
+      ),
+      BigRock(
+        id: "r2",
+        roleId: "father",
+        title: "陪孩子",
+        weekOf: "2026-07-20",
+        scheduledStart: "2026-07-22T18:00:00.000Z",
+        scheduledEnd: "2026-07-22T19:00:00.000Z",
+        status: "scheduled"
+      ),
+      BigRock(
+        id: "r3",
+        roleId: "health",
+        title: "游泳",
+        weekOf: "2026-07-20",
+        scheduledStart: "2026-07-23T07:00:00.000Z",
+        scheduledEnd: "2026-07-23T08:00:00.000Z",
+        status: "swallowed"
+      ),
+    ]
+    let stats = CalendarAnalyzer.computeWeeklyStats(
+      events: [],
+      roleIds: ["health", "father"],
+      weekOf: weekOf,
+      rocks: rocks,
+      calendar: utcCalendar
+    )
+    XCTAssertEqual(stats.plannedRocks, 3)
+    XCTAssertEqual(stats.landedRocks, 1)
+    XCTAssertEqual(stats.weekOf, "2026-07-20")
+  }
+
+  func testRockReconcilerMarksSwallowedAndDone() {
+    let rocks: [BigRock] = [
+      BigRock(
+        id: "gone",
+        roleId: "health",
+        title: "晨跑",
+        weekOf: "2026-07-20",
+        scheduledStart: "2026-07-21T07:00:00.000Z",
+        scheduledEnd: "2026-07-21T08:00:00.000Z",
+        status: "scheduled"
+      ),
+      BigRock(
+        id: "kept",
+        roleId: "father",
+        title: "陪孩子",
+        weekOf: "2026-07-20",
+        scheduledStart: "2026-07-20T18:00:00.000Z",
+        scheduledEnd: "2026-07-20T19:00:00.000Z",
+        status: "scheduled"
+      ),
+    ]
+    let events: [CalendarEvent] = [
+      CalendarEvent(
+        id: "kept",
+        title: "大石头：陪孩子",
+        start: "2026-07-20T18:00:00.000Z",
+        end: "2026-07-20T19:00:00.000Z",
+        roleId: "father",
+        isBigRock: true,
+        category: .family
+      ),
+    ]
+    let now = ISO8601.date(from: "2026-07-22T12:00:00.000Z")!
+    let next = RockReconciler.reconcile(rocks: rocks, events: events, now: now)
+    XCTAssertEqual(next.first(where: { $0.id == "gone" })?.status, "swallowed")
+    XCTAssertEqual(next.first(where: { $0.id == "kept" })?.status, "done")
   }
 
   func testMentorContextRoundTripJSON() throws {
@@ -133,7 +222,8 @@ final class CalendarAnalyzerTests: XCTestCase {
       events: events,
       roleIds: ["engineer", "health"],
       weeks: 3,
-      now: now
+      now: now,
+      calendar: utcCalendar
     )
     XCTAssertEqual(starve["health"] ?? 0, 3)
     XCTAssertLessThan(starve["engineer"] ?? 99, 3)

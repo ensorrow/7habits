@@ -47,6 +47,12 @@ final class AppModel: ObservableObject {
   @Published var lastMentorError: String?
   @Published var agentReachable = false
   @Published var agentStatus: MentorAgentStatus?
+  @Published var agentManagedByApp = false
+  @Published var agentRepoPath: String = ""
+  @Published var agentAutoStart = true
+  @Published var qoderPat: String = ""
+  @Published var agentRuntimeSource: String = "none"
+  @Published var hasBundledAgent = false
 
   @Published var menubarBadge = false
   @Published var pendingInterventionMessage: String?
@@ -63,6 +69,12 @@ final class AppModel: ObservableObject {
 
   private let calendarStore: any CalendarProviding
   private let api: MentorAPIClient
+  private let agentLauncher = AgentProcessLauncher()
+  private var interventionTimer: Timer?
+  private var calendarChangeTask: Task<Void, Never>?
+
+  /// Periodic intervention scan interval (seconds).
+  private static let interventionScanInterval: TimeInterval = 15 * 60
 
   init(
     calendarStore: (any CalendarProviding)? = nil,
@@ -71,6 +83,10 @@ final class AppModel: ObservableObject {
     self.calendarStore = calendarStore ?? EventKitCalendarStore()
     self.api = api
     restorePersisted()
+    agentRepoPath = agentLauncher.repoPath
+    agentAutoStart = agentLauncher.autoStart
+    qoderPat = agentLauncher.qoderPat
+    hasBundledAgent = agentLauncher.hasBundledRuntime
   }
 
   var phaseLabel: String {
@@ -86,10 +102,11 @@ final class AppModel: ObservableObject {
   }
 
   func bootstrap() async {
-    await refreshAgent()
+    await ensureAgentReady()
     if calendarAuthorized {
       try? await reloadFromEventKit()
     }
+    startBackgroundWatchers()
     if messages.isEmpty {
       await advanceMentor(userText: nil)
     } else {
@@ -97,13 +114,104 @@ final class AppModel: ObservableObject {
     }
   }
 
+  /// Connect to :8787; if down, optionally spawn `npm run agent` from the repo.
+  func ensureAgentReady() async {
+    syncAgentSettingsToLauncher()
+    hasBundledAgent = agentLauncher.hasBundledRuntime
+    let ok = await agentLauncher.ensureRunning {
+      (try? await self.api.health()) ?? false
+    }
+    agentManagedByApp = agentLauncher.startedByApp
+    agentRuntimeSource = agentLauncher.runtimeSource
+    if !ok, let err = agentLauncher.lastError {
+      lastMentorError = err
+    }
+    await refreshAgent()
+  }
+
+  func saveAgentSettings() {
+    syncAgentSettingsToLauncher()
+  }
+
+  func restartManagedAgent() async {
+    agentLauncher.stopIfManaged()
+    agentManagedByApp = false
+    await ensureAgentReady()
+  }
+
+  func stopManagedAgent() {
+    agentLauncher.stopIfManaged()
+    agentManagedByApp = false
+  }
+
+  private func syncAgentSettingsToLauncher() {
+    agentLauncher.repoPath = agentRepoPath
+    agentLauncher.autoStart = agentAutoStart
+    agentLauncher.qoderPat = qoderPat
+  }
+
+  /// Timer + EventKit change notifications — without these, interventions only fire from settings.
+  private func startBackgroundWatchers() {
+    if let ek = calendarStore as? EventKitCalendarStore {
+      ek.startObservingChanges { [weak self] in
+        Task { @MainActor in
+          await self?.handleCalendarStoreChanged()
+        }
+      }
+    }
+
+    interventionTimer?.invalidate()
+    interventionTimer = Timer.scheduledTimer(
+      withTimeInterval: Self.interventionScanInterval,
+      repeats: true
+    ) { [weak self] _ in
+      Task { @MainActor in
+        await self?.onPeriodicScan()
+      }
+    }
+    if let interventionTimer {
+      RunLoop.main.add(interventionTimer, forMode: .common)
+    }
+  }
+
+  private func handleCalendarStoreChanged() async {
+    calendarChangeTask?.cancel()
+    calendarChangeTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 1_500_000_000)
+      guard !Task.isCancelled else { return }
+      await onPeriodicScan()
+    }
+  }
+
+  private func onPeriodicScan() async {
+    if calendarAuthorized {
+      try? await reloadFromEventKit()
+    }
+    applyRockReconciliation()
+    await scanInterventions()
+  }
+
+  private func applyRockReconciliation() {
+    let next = RockReconciler.reconcile(rocks: rocks, events: events)
+    if next != rocks {
+      rocks = next
+      persist()
+    }
+  }
+
   func refreshAgent() async {
     do {
       agentReachable = try await api.health()
       if agentReachable {
-        agentStatus = try await api.status()
+        let pat = qoderPat.trimmingCharacters(in: .whitespacesAndNewlines)
+        agentStatus = try await api.status(accessToken: pat.isEmpty ? nil : pat)
       } else {
-        agentStatus = MentorAgentStatus(available: false, authMode: nil, reason: "导师服务未启动（npm run agent）")
+        agentStatus = MentorAgentStatus(
+          available: false,
+          authMode: nil,
+          reason: agentLauncher.lastError
+            ?? "导师服务未启动。开启「自动拉起」或手动运行 npm run agent。"
+        )
       }
     } catch {
       agentReachable = false
@@ -131,9 +239,11 @@ final class AppModel: ObservableObject {
     let start = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: end) ?? end
     events = try await calendarStore.loadEvents(from: start, to: end)
     todos = (try? await calendarStore.loadReminders()) ?? []
+    applyRockReconciliation()
     weeklyStats = CalendarAnalyzer.computeWeeklyStats(
       events: events,
-      roleIds: roles.map(\.id)
+      roleIds: roles.map(\.id),
+      rocks: rocks
     )
   }
 
@@ -177,16 +287,26 @@ final class AppModel: ObservableObject {
     defer { mentorBusy = false }
 
     if !agentReachable {
-      await refreshAgent()
+      await ensureAgentReady()
       if !agentReachable {
-        lastMentorError = "请先运行 `npm run agent`（默认 8787），原生壳通过本地 API 复用导师决策逻辑。"
+        lastMentorError =
+          agentLauncher.lastError
+          ?? "无法连接导师服务（:8787）。发行版应自带 MentorAgent 运行时；开发构建请先 npm run package:agent。"
         return
       }
     }
 
     let ctx = buildContext()
     do {
-      let response = try await api.turn(MentorTurnRequest(context: ctx, userText: userText, useAgent: true))
+      let pat = qoderPat.trimmingCharacters(in: .whitespacesAndNewlines)
+      let response = try await api.turn(
+        MentorTurnRequest(
+          context: ctx,
+          userText: userText,
+          useAgent: true,
+          accessToken: pat.isEmpty ? nil : pat
+        )
+      )
       apply(reply: response.reply, source: response.source, error: response.error)
       persist()
     } catch {
@@ -197,7 +317,12 @@ final class AppModel: ObservableObject {
   func startWeeklyReview() {
     phase = .weeklyReview
     weeklyReviewAct = .observation
-    weeklyStats = CalendarAnalyzer.computeWeeklyStats(events: events, roleIds: roles.map(\.id))
+    applyRockReconciliation()
+    weeklyStats = CalendarAnalyzer.computeWeeklyStats(
+      events: events,
+      roleIds: roles.map(\.id),
+      rocks: rocks
+    )
     if var stats = weeklyStats {
       stats.language = languageStats
       weeklyStats = stats
@@ -280,12 +405,20 @@ final class AppModel: ObservableObject {
         isBigRock: true
       )
       events.append(event)
+      let weekFormatter = ISO8601DateFormatter()
+      weekFormatter.formatOptions = [.withFullDate]
+      var mondayComponents = Calendar.current.dateComponents(
+        [.yearForWeekOfYear, .weekOfYear],
+        from: start
+      )
+      mondayComponents.weekday = 2
+      let monday = Calendar.current.date(from: mondayComponents) ?? start
       rocks.append(
         BigRock(
           id: event.id,
           roleId: roleId,
           title: title,
-          weekOf: weeklyStats?.weekOf ?? ISO8601.string(from: Date()),
+          weekOf: weeklyStats?.weekOf ?? weekFormatter.string(from: monday),
           scheduledStart: event.start,
           scheduledEnd: event.end,
           status: "scheduled"
@@ -354,6 +487,8 @@ final class AppModel: ObservableObject {
       await refreshAgent()
       guard agentReachable else { return }
     }
+
+    applyRockReconciliation()
 
     let starve = CalendarAnalyzer.roleStarveWeeks(events: events, roleIds: roles.map(\.id))
     let input = InterventionEvalInput(

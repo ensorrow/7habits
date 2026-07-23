@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeCalendar, generateMockCalendar } from './calendar';
+import {
+  analyzeCalendar,
+  computeWeeklyStats,
+  generateMockCalendar,
+  reconcileRockStatuses,
+} from './calendar';
 import { analyzeLanguage, mergeLanguageStats } from './language';
 import { challengeMode, createAccount, deposit } from './emotionalAccount';
 import { coldStartReply, weeklyReviewReply, type MentorContext } from './mentor';
 import { evaluateInterventions, demoSwallowedRock } from './interventions';
+import { formatISO, startOfWeek } from 'date-fns';
+import type { BigRock } from '../types';
 
 function baseCtx(over: Partial<MentorContext> = {}): MentorContext {
   return {
@@ -29,6 +36,81 @@ describe('calendar mock', () => {
     expect(a.totalMeetings).toBeGreaterThan(10);
     expect(a.lateNightCount).toBeGreaterThan(0);
     expect(a.observation).toContain('周末');
+  });
+
+  it('counts planned/landed rocks from real rock list', () => {
+    const week = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekOf = formatISO(week, { representation: 'date' });
+    const rocks: BigRock[] = [
+      {
+        id: 'r1',
+        roleId: 'health',
+        title: '晨跑',
+        weekOf,
+        status: 'done',
+      },
+      {
+        id: 'r2',
+        roleId: 'father',
+        title: '陪孩子',
+        weekOf,
+        status: 'scheduled',
+      },
+      {
+        id: 'r3',
+        roleId: 'health',
+        title: '游泳',
+        weekOf,
+        status: 'swallowed',
+      },
+    ];
+    const stats = computeWeeklyStats([], ['health', 'father'], new Date(), rocks);
+    expect(stats.plannedRocks).toBe(3);
+    expect(stats.landedRocks).toBe(1);
+  });
+
+  it('reconciles deleted big rocks to swallowed and past kept rocks to done', () => {
+    const start = new Date();
+    start.setHours(start.getHours() - 5);
+    const end = new Date(start.getTime() + 3600000);
+    const rocks: BigRock[] = [
+      {
+        id: 'gone',
+        roleId: 'health',
+        title: '晨跑',
+        weekOf: formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), {
+          representation: 'date',
+        }),
+        scheduledStart: formatISO(start),
+        scheduledEnd: formatISO(end),
+        status: 'scheduled',
+      },
+      {
+        id: 'kept',
+        roleId: 'father',
+        title: '陪孩子',
+        weekOf: formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), {
+          representation: 'date',
+        }),
+        scheduledStart: formatISO(start),
+        scheduledEnd: formatISO(end),
+        status: 'scheduled',
+      },
+    ];
+    const events = [
+      {
+        id: 'kept',
+        title: '大石头：陪孩子',
+        start: formatISO(start),
+        end: formatISO(end),
+        roleId: 'father',
+        isBigRock: true as const,
+        category: 'family' as const,
+      },
+    ];
+    const next = reconcileRockStatuses(rocks, events);
+    expect(next.find((r) => r.id === 'gone')?.status).toBe('swallowed');
+    expect(next.find((r) => r.id === 'kept')?.status).toBe('done');
   });
 });
 
