@@ -320,6 +320,8 @@ public struct MentorContext: Codable, Sendable {
   public var roleStarveWeeks: [String: Int]?
   public var languageStats: LanguageStats?
   public var pendingMissionProposal: String?
+  /// Stage C: stay_and_probe count on the current act (optional for older clients).
+  public var actProbeCount: Int?
 
   public init(
     messages: [ChatMessage],
@@ -340,7 +342,8 @@ public struct MentorContext: Codable, Sendable {
     priorQ1Ratio: Int? = nil,
     roleStarveWeeks: [String: Int]? = nil,
     languageStats: LanguageStats? = nil,
-    pendingMissionProposal: String? = nil
+    pendingMissionProposal: String? = nil,
+    actProbeCount: Int? = nil
   ) {
     self.messages = messages
     self.coldStartStep = coldStartStep
@@ -361,6 +364,7 @@ public struct MentorContext: Codable, Sendable {
     self.roleStarveWeeks = roleStarveWeeks
     self.languageStats = languageStats
     self.pendingMissionProposal = pendingMissionProposal
+    self.actProbeCount = actProbeCount
   }
 }
 

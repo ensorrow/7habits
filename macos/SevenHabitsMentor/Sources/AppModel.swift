@@ -66,6 +66,7 @@ final class AppModel: ObservableObject {
   @Published var lastJournalDraft: String?
   @Published var interventionsThisWeek = 0
   @Published var lastInterventionAt: String?
+  @Published var actProbeCount = 0
 
   private let calendarStore: any CalendarProviding
   private let api: MentorAPIClient
@@ -642,7 +643,8 @@ final class AppModel: ObservableObject {
       priorQ1Ratio: priorQ1Ratio,
       roleStarveWeeks: starve,
       languageStats: languageStats,
-      pendingMissionProposal: pendingMissionProposal
+      pendingMissionProposal: pendingMissionProposal,
+      actProbeCount: actProbeCount
     )
   }
 
@@ -658,9 +660,20 @@ final class AppModel: ObservableObject {
         sources: reply.sources
       )
     )
+    let prevCold = coldStartStep
+    let prevWeekly = weeklyReviewAct
+    let prevPhase = phase
     if let step = reply.nextColdStartStep { coldStartStep = step }
     if let act = reply.nextWeeklyAct { weeklyReviewAct = act }
     if let p = reply.phase { phase = p }
+    let advanced =
+      coldStartStep != prevCold || weeklyReviewAct != prevWeekly || phase != prevPhase
+    if advanced {
+      actProbeCount = 0
+    } else if reply.nextColdStartStep != nil || reply.nextWeeklyAct != nil {
+      // Reaffirmed same act → treated as stay_and_probe for budget tracking
+      actProbeCount += 1
+    }
     if let deposit = reply.deposit {
       emotionalAccount.balance = min(100, emotionalAccount.balance + deposit)
       emotionalAccount.deposits += 1

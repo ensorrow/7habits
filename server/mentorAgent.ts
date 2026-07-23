@@ -1,12 +1,16 @@
 import type { MentorContext, MentorReply } from '../src/services/mentor.ts';
 import {
+  buildActionPrompt,
   buildTurnPrompt,
   buildUnderstandPrompt,
+  MENTOR_ACTION_PROMPT,
   MENTOR_AGENT_PROMPT,
   MENTOR_UNDERSTAND_PROMPT,
 } from './mentorPrompt.ts';
 import type { UnderstandingResult } from '../src/types/understanding.ts';
 import { coalesceUnderstanding, understandLocal } from '../src/services/understanding.ts';
+import type { MentorActionProposal } from '../src/types/actions.ts';
+import { coalesceAction, proposeLocal } from '../src/services/actions.ts';
 
 export type MentorAgentSource = 'qoder' | 'local';
 
@@ -22,6 +26,7 @@ const CLOUD_API_BASE =
   process.env.QODER_CLOUD_API_BASE?.trim() || 'https://api.qoder.com/api/v1/cloud';
 const MENTOR_CLOUD_AGENT_NAME = 'seven-habits-mentor';
 const MENTOR_UNDERSTAND_AGENT_NAME = 'seven-habits-mentor-understand';
+const MENTOR_ACTION_AGENT_NAME = 'seven-habits-mentor-action';
 
 type CloudContentBlock = { type: string; text?: string };
 type CloudEvent = {
@@ -38,6 +43,7 @@ type CloudSession = {
 let cachedEnvironmentId: string | null = null;
 let cachedAgentId: string | null = null;
 let cachedUnderstandAgentId: string | null = null;
+let cachedActionAgentId: string | null = null;
 
 function resolveAccessToken(accessTokenOverride?: string): string | null {
   const fromUi = accessTokenOverride?.trim();
@@ -424,4 +430,143 @@ export async function understandWithQoderAgent(
 
   const parsed = parseUnderstandingPayload(extractJsonObject(spoken));
   return coalesceUnderstanding(parsed, local);
+}
+
+async function ensureActionAgent(token: string): Promise<string> {
+  if (cachedActionAgentId) return cachedActionAgentId;
+
+  const listed = await cloudFetch<{ data?: Array<{ id?: string; name?: string }> }>(
+    token,
+    'GET',
+    '/agents?limit=50',
+  );
+  const existing = listed.data?.find((a) => a.name === MENTOR_ACTION_AGENT_NAME && a.id);
+  if (existing?.id) {
+    const detail = await cloudFetch<{ id?: string; version?: number; system?: string }>(
+      token,
+      'GET',
+      `/agents/${existing.id}`,
+    );
+    if (detail.system !== MENTOR_ACTION_PROMPT && detail.version != null) {
+      await cloudFetch(token, 'POST', `/agents/${existing.id}`, {
+        version: detail.version,
+        name: MENTOR_ACTION_AGENT_NAME,
+        model: QODER_MODEL,
+        description: '7习惯导师动作层（Stage C：有界动作 JSON，状态机裁判）',
+        system: MENTOR_ACTION_PROMPT,
+      });
+    }
+    cachedActionAgentId = existing.id;
+    return existing.id;
+  }
+
+  const created = await cloudFetch<{ id?: string }>(token, 'POST', '/agents', {
+    name: MENTOR_ACTION_AGENT_NAME,
+    model: QODER_MODEL,
+    description: '7习惯导师动作层（Stage C：有界动作 JSON，状态机裁判）',
+    system: MENTOR_ACTION_PROMPT,
+  });
+  if (!created.id) {
+    throw new Error('Cloud Agents 创建 action agent 失败：响应无 id');
+  }
+  cachedActionAgentId = created.id;
+  return created.id;
+}
+
+const ACTION_TYPES = new Set([
+  'advance_act',
+  'stay_and_probe',
+  'propose_mission',
+  'schedule_rock',
+  'mark_promise',
+]);
+
+function parseActionPayload(raw: unknown): Partial<MentorActionProposal> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const type = obj.type;
+  if (typeof type !== 'string' || !ACTION_TYPES.has(type)) return null;
+  const confidence =
+    typeof obj.confidence === 'number' ? obj.confidence : Number(obj.confidence);
+  return {
+    type: type as MentorActionProposal['type'],
+    confidence: Number.isFinite(confidence) ? confidence : 0.7,
+    reason: typeof obj.reason === 'string' ? obj.reason : undefined,
+    probeHint: typeof obj.probeHint === 'string' ? obj.probeHint : undefined,
+    missionTheme:
+      obj.missionTheme === null ||
+      obj.missionTheme === 'family' ||
+      obj.missionTheme === 'health' ||
+      obj.missionTheme === 'generic'
+        ? (obj.missionTheme as MentorActionProposal['missionTheme'])
+        : undefined,
+    rock:
+      obj.rock && typeof obj.rock === 'object'
+        ? (obj.rock as MentorActionProposal['rock'])
+        : undefined,
+    promiseFulfilled:
+      obj.promiseFulfilled === null || typeof obj.promiseFulfilled === 'boolean'
+        ? (obj.promiseFulfilled as boolean | null)
+        : undefined,
+    source: 'model',
+  };
+}
+
+/**
+ * Stage C: ask the model for a bounded action proposal, coalesce with local degrade.
+ */
+export async function proposeWithQoderAgent(
+  ctx: MentorContext,
+  understanding: UnderstandingResult,
+  userText?: string,
+  accessTokenOverride?: string,
+): Promise<MentorActionProposal> {
+  const local = proposeLocal(ctx, userText, understanding);
+  if (!userText?.trim()) return local;
+
+  const token = resolveAccessToken(accessTokenOverride);
+  if (!token) {
+    throw new Error('Qoder auth not configured');
+  }
+
+  const prompt = buildActionPrompt(
+    ctx,
+    {
+      intent: understanding.intent,
+      topic: understanding.topic,
+      confidence: understanding.confidence,
+      slots: understanding.slots,
+    },
+    userText,
+  );
+  const [environmentId, agentId] = await Promise.all([
+    ensureEnvironmentId(token),
+    ensureActionAgent(token),
+  ]);
+
+  const session = await cloudFetch<CloudSession>(token, 'POST', '/sessions', {
+    agent: agentId,
+    environment_id: environmentId,
+    title: `action-${ctx.phase}-${Date.now()}`,
+  });
+  if (!session.id) {
+    throw new Error('Cloud Agents 创建 action session 失败：响应无 id');
+  }
+
+  await cloudFetch(token, 'POST', `/sessions/${session.id}/events`, {
+    events: [
+      {
+        type: 'user.message',
+        content: [{ type: 'text', text: prompt }],
+      },
+    ],
+  });
+
+  const spoken = sanitizeMentorSpeech(await waitForAgentSpeech(token, session.id));
+  if (!spoken) {
+    throw new Error('Qoder action agent returned empty');
+  }
+
+  const parsed = parseActionPayload(extractJsonObject(spoken));
+  return coalesceAction(parsed, local);
 }

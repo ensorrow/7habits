@@ -53,6 +53,41 @@ export const MENTOR_UNDERSTAND_PROMPT = `你是「7习惯导师」的理解层�
 - clueText 用用户原话短摘或忠实摘要
 - 不确定时降低 confidence，topic 用 general/unclear`;
 
+/** Stage C: model proposes one bounded action; state machine referees. */
+export const MENTOR_ACTION_PROMPT = `你是「7习惯导师」的动作提议层（Stage C）。你只在有界动作空间内提议本轮该做什么，不说话、不改数字、不发明阶段。
+
+## 输出
+只输出一个 JSON 对象（不要 markdown 围栏），字段：
+{
+  "type": "advance_act"|"stay_and_probe"|"propose_mission"|"schedule_rock"|"mark_promise",
+  "confidence": 0到1的数字,
+  "reason"?: string,
+  "probeHint"?: string,
+  "missionTheme"?: "family"|"health"|"generic"|null,
+  "rock"?: { "title"?: string, "roleName"?: string, "weekday"?: string, "durationMinutes"?: number },
+  "promiseFulfilled"?: boolean|null
+}
+
+## 动作含义（REQUIREMENTS §8.2）
+- advance_act：推进到下一幕/下一步，或按理解结果走默认日常路由
+- stay_and_probe：留在当前幕再追问一轮（用户回答太薄、回避关键点、或对质值得再挖一层时）。probeHint 写一句导师会问的结构性问题（中文）
+- propose_mission：提出使命草稿候选（填 missionTheme）
+- schedule_rock：提议写一块大石头（能抽到则填 rock）
+- mark_promise：认定/追问上周之约（promiseFulfilled: true/false；仅追问时用 null）
+
+## 判断启发式
+- 冷启动/周回顾：用户答得很短、含糊、或明显在绕开问题时 → stay_and_probe；答案具体可推进 → advance_act
+- 同一幕已追问过（actProbeCount≥1）→ 必须 advance_act
+- 对质幕若周数据很差且用户没提根因 → 倾向 stay_and_probe（本地裁判也会强制）
+- 日常：话题是使命方向 → propose_mission；大石头/待办 → schedule_rock；上周之约 → mark_promise；否则 advance_act 或偶发 stay_and_probe
+- 无用户输入 → advance_act
+
+## 硬约束
+- 只能输出上述 type，不要发明新动作
+- 不要讲习惯教材，不要编造日历数字
+- 干预（P0–P3）不由你触发
+- 不确定时用 advance_act 并降低 confidence`;
+
 export const MENTOR_AGENT_PROMPT = `你是「7习惯导师」——深度践行《高效能人士的7个习惯》的个人导师。
 
 ## 你是什么
@@ -110,6 +145,43 @@ ${userText?.trim() ? userText.trim() : '（无用户输入）'}
 请输出理解 JSON。`;
 }
 
+export function buildActionPrompt(
+  ctx: MentorContext,
+  understanding: {
+    intent: string;
+    topic: string;
+    confidence: number;
+    slots: unknown;
+  },
+  userText?: string,
+): string {
+  const recent = ctx.messages
+    .slice(-6)
+    .map((m) => `${m.sender === 'user' ? '用户' : '导师'}: ${m.content}`)
+    .join('\n');
+
+  return `## 当前会话状态（只读）
+- 阶段: ${ctx.phase}
+- 冷启动步骤: ${ctx.coldStartStep}
+- 周回顾幕次: ${ctx.weeklyReviewAct}
+- 本幕已追问次数 actProbeCount: ${ctx.actProbeCount ?? 0}
+- 待确认使命: ${ctx.pendingMissionProposal ? '有' : '无'}
+- 待问上周之约: ${ctx.pendingPromise && !ctx.pendingPromise.asked ? ctx.pendingPromise.text : '无'}
+- 情感账户: ${ctx.emotionalAccount.level} / ${ctx.emotionalAccount.balance}
+- 第 ${ctx.weekCount + 1} 周
+
+## 本轮理解结果（Stage B，只读）
+${JSON.stringify(understanding, null, 2)}
+
+## 最近对话
+${recent || '（尚无）'}
+
+## 用户本轮输入
+${userText?.trim() ? userText.trim() : '（无用户输入）'}
+
+请输出动作提议 JSON。`;
+}
+
 export function buildTurnPrompt(
   ctx: MentorContext,
   structural: MentorReply,
@@ -153,11 +225,19 @@ ${JSON.stringify(
       suggestRoles: structural.suggestRoles,
       extractClue: structural.extractClue,
       habitFocus: structural.habitFocus ?? [],
+      action: structural.action
+        ? {
+            proposed: structural.action.proposed.type,
+            effective: structural.action.effective.type,
+            allowed: structural.action.allowed,
+            reason: structural.action.reason,
+          }
+        : undefined,
     },
     null,
     2,
   )}
 
 请基于 brief 生成导师最终对用户说的话。
-改写约束：保留 intentContent 中的关键名词与数字；按 habitFocus 用对应机制说话，但不要点名习惯编号；最终只输出对用户说的正文。`;
+改写约束：保留 intentContent 中的关键名词与数字；按 habitFocus 用对应机制说话，但不要点名习惯编号；若 effective action 是 stay_and_probe，保持追问语气、不要假装已推进到下一幕；最终只输出对用户说的正文。`;
 }
