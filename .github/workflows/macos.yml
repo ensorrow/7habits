@@ -10,6 +10,16 @@ on:
       - 'macos/**'
       - '.github/workflows/macos.yml'
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Also publish a GitHub Release with the .app zip'
+        type: boolean
+        default: false
+      tag_name:
+        description: 'Release tag (e.g. v0.1.0). Empty = package-<sha>'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: macos-l3-${{ github.workflow }}-${{ github.ref }}
@@ -44,3 +54,106 @@ jobs:
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  package:
+    name: Package .app zip
+    runs-on: macos-14
+    needs: seven-habits-core
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Build Release .app (ad-hoc sign)
+        run: |
+          set -euo pipefail
+          DERIVED="$(pwd)/macos/.ci-derived"
+          rm -rf "$DERIVED"
+          xcodebuild \
+            -project macos/SevenHabitsMentor.xcodeproj \
+            -scheme SevenHabitsMentor \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            build
+
+          APP="$DERIVED/Build/Products/Release/SevenHabitsMentor.app"
+          test -d "$APP"
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+
+          # Re-sign ad-hoc so sandbox + calendars/reminders entitlements stick.
+          # No hardened runtime: that needs a real Developer ID for notarization.
+          codesign --force --deep \
+            --entitlements macos/SevenHabitsMentor/Resources/SevenHabitsMentor.entitlements \
+            --sign - \
+            "$APP"
+          codesign -dv --verbose=2 "$APP" || true
+
+      - name: Zip .app
+        run: |
+          set -euo pipefail
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          STAMP="${VERSION}+${BUILD}-${SHORT_SHA}"
+          OUT_DIR="$(pwd)/dist"
+          mkdir -p "$OUT_DIR"
+          ZIP_NAME="SevenHabitsMentor-${STAMP}.zip"
+          ditto -c -k --keepParent "$APP_PATH" "$OUT_DIR/$ZIP_NAME"
+          ls -lh "$OUT_DIR/$ZIP_NAME"
+          echo "ZIP_PATH=$OUT_DIR/$ZIP_NAME" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "APP_BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "PACKAGE_STAMP=$STAMP" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SevenHabitsMentor-macos-${{ env.PACKAGE_STAMP }}
+          path: ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="package-${GITHUB_SHA::7}"
+          fi
+          TITLE="7习惯导师 ${APP_VERSION} (${PACKAGE_STAMP})"
+          NOTES="$(cat <<EOF
+          ## macOS 未公证安装包
+
+          - 版本：\`${APP_VERSION}\` (build ${APP_BUILD})
+          - 提交：\`${GITHUB_SHA}\`
+          - 签名：ad-hoc（无 Apple Developer 证书 / 未 notarize）
+
+          ### 安装
+
+          1. 下载 \`${ZIP_NAME}\` 并解压得到 \`SevenHabitsMentor.app\`
+          2. 如 Gatekeeper 拦截：右键 →「打开」，或：
+             \`\`\`bash
+             xattr -dr com.apple.quarantine SevenHabitsMentor.app
+             \`\`\`
+          3. 本地另开导师 API（仓库根目录）：\`npm run agent\`（默认 \`http://127.0.0.1:8787\`）
+
+          > 日历/提醒权限与沙盒能力依赖本机授权；本产物非 App Store / Developer ID 分发。
+          EOF
+          )"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP_PATH" --clobber
+          else
+            gh release create "$TAG" "$ZIP_PATH" --title "$TITLE" --notes "$NOTES"
+          fi
+          echo "Published release tag: $TAG"
