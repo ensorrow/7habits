@@ -162,3 +162,9 @@ export type {
   UnderstandingSlots,
   UnderstandingResult,
 } from './understanding';
+
+export type {
+  MentorActionType,
+  MentorActionProposal,
+  ActionDecision,
+} from './actions';

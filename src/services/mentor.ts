@@ -6,6 +6,10 @@ import {
 import { challengeMode } from './emotionalAccount';
 import { habitFocusForTurn, type HabitId } from './habits';
 import {
+  probeContent,
+  resolveAction,
+} from './actions';
+import {
   inferMissionTheme,
   inferRoleHints,
   understandLocal,
@@ -24,12 +28,17 @@ import type {
   WeeklyStats,
 } from '../types';
 import type {
+  ActionDecision,
+  MentorActionProposal,
+} from '../types/actions';
+import type {
   MissionTheme,
   RoleHint,
   UnderstandingResult,
 } from '../types/understanding';
 
 export type { UnderstandingResult } from '../types/understanding';
+export type { ActionDecision, MentorActionProposal } from '../types/actions';
 
 export interface MentorContext {
   messages: ChatMessage[];
@@ -63,6 +72,11 @@ export interface MentorContext {
   languageStats?: LanguageStats;
   /** Statement waiting for user confirm */
   pendingMissionProposal?: string;
+  /**
+   * Stage C: how many stay_and_probe turns already used on the current act.
+   * Referee caps this (default max 1).
+   */
+  actProbeCount?: number;
 }
 
 export interface MentorReply {
@@ -92,6 +106,8 @@ export interface MentorReply {
   clearSilence?: boolean;
   /** Mentor-drafted weekly journal for user confirm */
   journalDraft?: string;
+  /** Stage C referee outcome for this turn */
+  action?: ActionDecision;
 }
 
 function withHabitFocus(
@@ -109,21 +125,45 @@ function resolveUnderstanding(
   return understanding ?? understandLocal(ctx, userText);
 }
 
+function withAction(reply: MentorReply, decision: ActionDecision): MentorReply {
+  return { ...reply, action: decision };
+}
+
 export function coldStartReply(
   ctx: MentorContext,
   userText?: string,
   understanding?: UnderstandingResult,
+  action?: MentorActionProposal | ActionDecision,
 ): MentorReply {
   const step = ctx.coldStartStep;
   const u = resolveUnderstanding(ctx, userText, understanding);
+  const decision = resolveAction(ctx, userText, u, action);
+  const effective = decision.effective;
   const tag = (reply: MentorReply, stepOverride?: string) =>
-    withHabitFocus(
-      reply,
-      habitFocusForTurn({
-        phase: 'cold-start',
-        coldStartStep: stepOverride ?? step,
-      }),
+    withAction(
+      withHabitFocus(
+        reply,
+        habitFocusForTurn({
+          phase: 'cold-start',
+          coldStartStep: stepOverride ?? step,
+        }),
+      ),
+      decision,
     );
+
+  // Stage C: stay on current step and probe (no advance).
+  if (
+    userText?.trim() &&
+    effective.type === 'stay_and_probe' &&
+    (step === 'observation' || step === 'q1' || step === 'q2' || step === 'q3')
+  ) {
+    return tag({
+      content: probeContent(ctx, u, effective),
+      nextColdStartStep: step,
+      deposit: 1,
+      extractClue: u.slots.clueText ?? userText,
+    });
+  }
 
   switch (step) {
     case 'intro':
@@ -292,20 +332,44 @@ export function weeklyReviewReply(
   ctx: MentorContext,
   userText?: string,
   understanding?: UnderstandingResult,
+  action?: MentorActionProposal | ActionDecision,
 ): MentorReply {
   const act = ctx.weeklyReviewAct;
   const stats = ctx.weeklyStats;
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
   const roles = ctx.roles;
   const u = resolveUnderstanding(ctx, userText, understanding);
+  const decision = resolveAction(ctx, userText, u, action);
+  const effective = decision.effective;
   const tag = (reply: MentorReply, actOverride?: WeeklyReviewAct) =>
-    withHabitFocus(
-      reply,
-      habitFocusForTurn({
-        phase: 'weekly-review',
-        weeklyReviewAct: actOverride ?? act,
-      }),
+    withAction(
+      withHabitFocus(
+        reply,
+        habitFocusForTurn({
+          phase: 'weekly-review',
+          weeklyReviewAct: actOverride ?? act,
+        }),
+      ),
+      decision,
     );
+
+  // Stage C: stay_and_probe — keep current act, ask one more question.
+  if (
+    userText?.trim() &&
+    effective.type === 'stay_and_probe' &&
+    (act === 'no-regret' ||
+      act === 'confrontation' ||
+      act === 'role-patrol' ||
+      act === 'sharpen' ||
+      act === 'schedule')
+  ) {
+    return tag({
+      content: probeContent(ctx, u, effective),
+      nextWeeklyAct: act,
+      deposit: 1,
+      extractClue: u.slots.clueText ?? userText,
+    });
+  }
 
   switch (act) {
     case 'prep':
@@ -563,8 +627,11 @@ export function dailyReply(
   ctx: MentorContext,
   userText: string,
   understanding?: UnderstandingResult,
+  action?: MentorActionProposal | ActionDecision,
 ): MentorReply {
   const u = resolveUnderstanding(ctx, userText, understanding);
+  const decision = resolveAction(ctx, userText, u, action);
+  const effective = decision.effective;
   const mode = challengeMode(ctx.emotionalAccount, ctx.weekCount, ctx.volume);
   const reactive = u.slots.reactivePhrases ?? [];
   const proactive = u.slots.proactivePhrases ?? [];
@@ -572,10 +639,102 @@ export function dailyReply(
     reply: MentorReply,
     dailyKind: Parameters<typeof habitFocusForTurn>[0]['dailyKind'],
   ) =>
-    withHabitFocus(
-      reply,
-      habitFocusForTurn({ phase: 'daily', dailyKind }),
+    withAction(
+      withHabitFocus(
+        reply,
+        habitFocusForTurn({ phase: 'daily', dailyKind }),
+      ),
+      decision,
     );
+
+  // Stage C side-actions (model-driven or local topic mirror).
+  if (effective.type === 'stay_and_probe') {
+    return tag(
+      {
+        content: probeContent(ctx, u, effective),
+        deposit: 1,
+        extractClue: u.slots.clueText ?? userText,
+      },
+      'generic',
+    );
+  }
+
+  if (effective.type === 'propose_mission' && !ctx.pendingMissionProposal) {
+    const proposal =
+      missionTextFromTheme(effective.missionTheme ?? u.slots.missionTheme) ??
+      suggestMissionFromClues(ctx) ??
+      '在重要的角色上持续投入，而不是只在紧急的事上反应';
+    return tag(
+      {
+        content: `最近几次对话里，我听到一个方向：「${proposal}」。要不要进你的使命草稿？回「确认」即可。`,
+        proposeMission: proposal,
+        deposit: 3,
+      },
+      'mission-roles',
+    );
+  }
+
+  if (effective.type === 'schedule_rock') {
+    const rock = effective.rock ?? u.slots.rock;
+    if (rock?.title && rock.weekday) {
+      return tag(
+        {
+          content: `记下了：${rock.roleName ? `给「${rock.roleName}」的` : ''}「${rock.title}」${rock.weekday}${rock.durationMinutes ? `，约 ${rock.durationMinutes} 分钟` : ''}。没进日历的大石头不算数——我可以帮你写进去。`,
+          deposit: 2,
+          extractClue: rock.title,
+        },
+        'big-rocks',
+      );
+    }
+    const deferred = chronicallyDeferredTodos(ctx.todos ?? []);
+    if (deferred.length > 0 && (u.topic === 'todos' || !rock?.title)) {
+      return tag(
+        {
+          content: `我看待办里「${deferred[0].title}」已推迟 ${deferred[0].deferredCount} 次——反复推迟的往往是第二象限。这周要不要给它一个日历块？`,
+          sources: ['待办/提醒'],
+          deposit: 2,
+          extractClue: deferred[0].title,
+        },
+        'big-rocks',
+      );
+    }
+    return tag(
+      {
+        content:
+          '大石头要进日历才算数。你想给哪个角色放一块？什么事、周几、多长时间？',
+        deposit: 1,
+      },
+      'big-rocks',
+    );
+  }
+
+  if (effective.type === 'mark_promise' && ctx.pendingPromise && !ctx.pendingPromise.asked) {
+    if (effective.promiseFulfilled === null || u.topic === 'promise_greeting') {
+      return tag(
+        {
+          content: `先兑现上周之约——我说过会问你「${ctx.pendingPromise.text}」。进展如何？`,
+          markPromiseAsked: true,
+          sources: ['上周之约'],
+          deposit: 2,
+        },
+        'promise-followup',
+      );
+    }
+    const ok = effective.promiseFulfilled === true || u.slots.promiseFulfilled === true;
+    return tag(
+      {
+        content: ok
+          ? `上周之约「${ctx.pendingPromise.text}」——你兑现了。这是情感账户上的一笔存款，我记住了。`
+          : `上周之约「${ctx.pendingPromise.text}」还没落地。账不会消失——这周你打算补在哪一天？`,
+        deposit: ok ? 5 : 1,
+        withdraw: ok ? 0 : 1,
+        markPromiseAsked: true,
+        markPromiseFulfilled: ok,
+        sources: ['上周之约'],
+      },
+      'promise-followup',
+    );
+  }
 
   switch (u.topic) {
     case 'mission_accept':
@@ -840,26 +999,33 @@ export function dailyReply(
 }
 
 /**
- * Mentor state machine. Stage B: consumes structured `understanding`
- * (model or local). Without it, falls back to `understandLocal` (degrade).
+ * Mentor state machine.
+ * Stage B: consumes structured `understanding` (model or local).
+ * Stage C: consumes refereed `action` (model proposes, local referees).
+ * Without either, falls back to local degrade paths.
  */
 export function respond(
   ctx: MentorContext,
   userText?: string,
   understanding?: UnderstandingResult,
+  action?: MentorActionProposal | ActionDecision,
 ): MentorReply {
   const u = resolveUnderstanding(ctx, userText, understanding);
+  const decision = resolveAction(ctx, userText, u, action);
   if (ctx.phase === 'cold-start' && ctx.coldStartStep !== 'done') {
-    return coldStartReply(ctx, userText, u);
+    return coldStartReply(ctx, userText, u, decision);
   }
   if (ctx.phase === 'weekly-review' && ctx.weeklyReviewAct !== 'done') {
-    return weeklyReviewReply(ctx, userText, u);
+    return weeklyReviewReply(ctx, userText, u, decision);
   }
   if (!userText) {
-    return withHabitFocus(
-      { content: '我在。你想谈这周，还是某件具体的事？' },
-      [],
+    return withAction(
+      withHabitFocus(
+        { content: '我在。你想谈这周，还是某件具体的事？' },
+        [],
+      ),
+      decision,
     );
   }
-  return dailyReply(ctx, userText, u);
+  return dailyReply(ctx, userText, u, decision);
 }

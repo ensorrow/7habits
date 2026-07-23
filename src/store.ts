@@ -79,6 +79,8 @@ interface AppStore {
   pendingMissionProposal?: string;
   lastJournalDraft?: string;
   lastWeeklyReviewAt?: string;
+  /** Stage C: stay_and_probe count on current act */
+  actProbeCount: number;
 
   setView: (view: AppView) => void;
   setVolume: (v: AppSettings['volume']) => void;
@@ -142,6 +144,7 @@ function buildCtx(s: AppStore): MentorContext {
         : undefined,
     languageStats: s.languageStats,
     pendingMissionProposal: s.pendingMissionProposal,
+    actProbeCount: s.actProbeCount,
   };
 }
 
@@ -245,6 +248,16 @@ function applyReply(
     if (state.weeklyStats) priorQ1Ratio = state.weeklyStats.q1Ratio;
   }
 
+  const nextCold = reply.nextColdStartStep ?? state.coldStartStep;
+  const nextWeekly = reply.nextWeeklyAct ?? state.weeklyReviewAct;
+  const nextPhase = reply.phase ?? state.mentorPhase;
+  const advanced =
+    nextCold !== state.coldStartStep ||
+    nextWeekly !== state.weeklyReviewAct ||
+    nextPhase !== state.mentorPhase;
+  const probed = reply.action?.effective.type === 'stay_and_probe' && !advanced;
+  const actProbeCount = advanced ? 0 : probed ? state.actProbeCount + 1 : state.actProbeCount;
+
   const newMessages = [
     ...state.messages,
     msg('mentor', reply.content, reply.sources),
@@ -268,9 +281,10 @@ function applyReply(
     missedWeeklyReviews,
     priorQ1Ratio,
     lastWeeklyReviewAt,
-    coldStartStep: reply.nextColdStartStep ?? state.coldStartStep,
-    weeklyReviewAct: reply.nextWeeklyAct ?? state.weeklyReviewAct,
-    mentorPhase: reply.phase ?? state.mentorPhase,
+    actProbeCount,
+    coldStartStep: nextCold,
+    weeklyReviewAct: nextWeekly,
+    mentorPhase: nextPhase,
     weekCount:
       reply.phase === 'daily' && state.mentorPhase === 'cold-start'
         ? 0
@@ -375,6 +389,7 @@ export const useAppStore = create<AppStore>()(
       },
       missedWeeklyReviews: 0,
       consecutiveIgnores: 0,
+      actProbeCount: 0,
 
       setView: (view) => set({ view }),
       setVolume: (volume) =>
@@ -488,6 +503,7 @@ export const useAppStore = create<AppStore>()(
           weeklyStats: stats,
           rocks,
           view: 'chat',
+          actProbeCount: 0,
         });
       },
 
@@ -732,6 +748,7 @@ export const useAppStore = create<AppStore>()(
           pendingMissionProposal: undefined,
           lastJournalDraft: undefined,
           lastWeeklyReviewAt: undefined,
+          actProbeCount: 0,
         });
         await runMentorTurn(get, set);
       },
@@ -761,6 +778,7 @@ export const useAppStore = create<AppStore>()(
         pendingMissionProposal: s.pendingMissionProposal,
         lastJournalDraft: s.lastJournalDraft,
         lastWeeklyReviewAt: s.lastWeeklyReviewAt,
+        actProbeCount: s.actProbeCount,
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<AppStore> | undefined;
