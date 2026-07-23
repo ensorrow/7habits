@@ -15,7 +15,7 @@ npm run dev:all   # Vite UI + Qoder mentor agent API (8787)
 
 MVP 为 Web 原型（模拟菜单栏 + 对话窗 + 角色仪表盘），日历数据为本地 mock。对话**决策**仍由本地规则引擎驱动；在设置里粘贴 Qoder PAT（或配置 `QODER_PAT` / `QODER_PERSONAL_ACCESS_TOKEN`）后，表达层走 [Qoder Cloud Agents](https://docs.qoder.com/cloud-agents/api/models/list)（写死 `model=auto`）润色话术。
 
-**macOS 原生壳（L3）** 在 [`macos/`](./macos/)：菜单栏 App + EventKit 读写系统日历，决策仍走 `npm run agent`。详见 [`macos/README.md`](./macos/README.md)。
+**macOS 原生壳（L3）** 在 [`macos/`](./macos/)：菜单栏 App + EventKit 读写系统日历。启动时默认自动拉起本机 `npm run agent`（设置里可填仓库路径与 Qoder PAT）。详见 [`macos/README.md`](./macos/README.md)。
 
 ```bash
 npm run dev:all

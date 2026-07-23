@@ -15,6 +15,7 @@
 		A10000000000000000000006 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* ChatView.swift */; };
 		A10000000000000000000007 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* DashboardView.swift */; };
 		A10000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* SettingsView.swift */; };
+		A1000000000000000000000C /* AgentProcessLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* AgentProcessLauncher.swift */; };
 		A10000000000000000000009 /* SevenHabitsCore in Frameworks */ = {isa = PBXBuildFile; productRef = A50000000000000000000001 /* SevenHabitsCore */; };
 		A1000000000000000000000A /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* EventKit.framework */; };
 		A1000000000000000000000B /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* UserNotifications.framework */; };
@@ -29,6 +30,7 @@
 		A20000000000000000000006 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000000000000000000000E /* AgentProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProcessLauncher.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000000000000000000000C /* SevenHabitsMentor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SevenHabitsMentor.entitlements; sourceTree = "<group>"; };
 		A2000000000000000000000A /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
@@ -90,6 +92,7 @@
 			children = (
 				A20000000000000000000001 /* SevenHabitsMentorApp.swift */,
 				A20000000000000000000002 /* AppModel.swift */,
+				A2000000000000000000000E /* AgentProcessLauncher.swift */,
 				A20000000000000000000003 /* EventKitCalendarStore.swift */,
 				A20000000000000000000004 /* MenuBarPanel.swift */,
 				A20000000000000000000005 /* RootView.swift */,
@@ -186,6 +189,7 @@
 			files = (
 				A10000000000000000000001 /* SevenHabitsMentorApp.swift in Sources */,
 				A10000000000000000000002 /* AppModel.swift in Sources */,
+				A1000000000000000000000C /* AgentProcessLauncher.swift in Sources */,
 				A10000000000000000000003 /* EventKitCalendarStore.swift in Sources */,
 				A10000000000000000000004 /* MenuBarPanel.swift in Sources */,
 				A10000000000000000000005 /* RootView.swift in Sources */,

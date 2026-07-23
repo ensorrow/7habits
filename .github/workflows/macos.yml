@@ -146,9 +146,9 @@ jobs:
              \`\`\`bash
              xattr -dr com.apple.quarantine SevenHabitsMentor.app
              \`\`\`
-          3. 本地另开导师 API（仓库根目录）：\`npm run agent\`（默认 \`http://127.0.0.1:8787\`）
+          3. 本机需已 clone 仓库并 \`npm install\`；App 默认会自动拉起 \`npm run agent\`（设置里可改仓库路径 / 填 Qoder PAT）。也可手动：\`npm run agent\`（默认 \`http://127.0.0.1:8787\`）
 
-          > 日历/提醒权限与沙盒能力依赖本机授权；本产物非 App Store / Developer ID 分发。
+          > 日历/提醒权限依赖本机授权。当前为**关闭 App Sandbox**的自用构建（以便拉起 Node）；本产物非 App Store / Developer ID 分发。
           EOF
           )"
           if gh release view "$TAG" >/dev/null 2>&1; then

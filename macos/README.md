@@ -21,14 +21,23 @@
 ## 在 Mac 上运行
 
 ```bash
-# 终端 1：导师 API（仓库根目录）
+# 仓库根目录先装好依赖（只需一次）
 npm install
-npm run agent
 
-# 终端 2：打开原生工程
+# 打开原生工程
 open macos/SevenHabitsMentor.xcodeproj
 # Xcode → Run（⌘R）
 ```
+
+启动时 App 会：
+
+1. 探测 `http://127.0.0.1:8787`；若已有人起了 agent，直接复用
+2. 否则（默认开启「自动拉起」）用 `/bin/zsh -lc "npm run agent"` 从仓库根目录拉起进程
+3. 设置里可填 **仓库路径**、可选 **Qoder PAT**（写入子进程环境变量）
+
+也可手动：`npm run agent`（另一终端）——App 检测到已在跑就不会再起一份。
+
+退出 App 时，若 agent 是本 App 拉起的，会一并结束。
 
 首次冷启动会按需求文档用导师口吻请求日历权限；授权后读取近 4 周 EventKit 事件。周回顾大石头与「第一次周回顾」会写回系统日历（notes 含 `[big-rock]` / `[seven-habits]`）。
 
@@ -66,7 +75,7 @@ CI（`.github/workflows/macos.yml`）在 macOS runner 上会额外打出 **Relea
 xattr -dr com.apple.quarantine SevenHabitsMentor.app
 ```
 
-菜单栏 App 仍依赖本机导师 API：仓库根目录 `npm run agent`（默认 `http://127.0.0.1:8787`）。
+菜单栏 App 会在启动时自动探测并（可选）拉起本机导师 API。仍依赖仓库里已 `npm install` 的 Node 工程；真正的「单文件开箱」要等内嵌决策逻辑。
 
 启动后会：
 
@@ -74,5 +83,6 @@ xattr -dr com.apple.quarantine SevenHabitsMentor.app
 - 监听 **`EKEventStoreChanged`**（日历变更后约 1.5s debounce 再扫）
 - 对账大石头：EventKit 里被删/被会议覆盖 → `swallowed`；时段已过且仍在 → `done`
 - 周回顾的大石头兑现率来自真实 `rocks`，不再硬编码 5/3
+- **自动拉起** `npm run agent`（可关；设置里填仓库路径 + 可选 PAT）
 
 > Cursor Cloud / Linux **无法**编译或运行本层（无 Swift/EventKit）。L1/L2 仍在 Linux 验证；L3 包由 GitHub Actions 的 `macos-14` runner 产出。
