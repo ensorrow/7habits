@@ -11,9 +11,8 @@ struct SettingsView: View {
           Text(model.agentReachable ? "已连接 :8787" : "未连接")
             .foregroundStyle(model.agentReachable ? .green : .orange)
         }
-        if model.agentManagedByApp {
-          Text("由本 App 自动拉起")
-            .font(.caption)
+        LabeledContent("运行时") {
+          Text(runtimeLabel)
             .foregroundStyle(.secondary)
         }
         if let status = model.agentStatus {
@@ -23,28 +22,30 @@ struct SettingsView: View {
             .foregroundStyle(.secondary)
         }
 
-        Toggle("启动时自动拉起 npm run agent", isOn: $model.agentAutoStart)
+        Toggle("启动时自动拉起导师进程", isOn: $model.agentAutoStart)
           .onChange(of: model.agentAutoStart) { _, _ in
             model.saveAgentSettings()
           }
-
-        TextField("仓库根目录（含 package.json）", text: $model.agentRepoPath)
-          .textFieldStyle(.roundedBorder)
-          .onChange(of: model.agentRepoPath) { _, _ in
-            model.saveAgentSettings()
-          }
-        Text("留空会尝试从 App 包路径向上查找，或读环境变量 SEVEN_HABITS_REPO。首次建议填绝对路径。")
-          .font(.caption)
-          .foregroundStyle(.secondary)
 
         SecureField("Qoder PAT（可选，润色话术）", text: $model.qoderPat)
           .textFieldStyle(.roundedBorder)
           .onChange(of: model.qoderPat) { _, _ in
             model.saveAgentSettings()
           }
-        Text("PAT 只给表达层；决策仍在本地 Node。不填也能对话，话术用模板。")
+        Text("填 PAT 即可用云端润色；不填也能对话（本地模板）。决策逻辑在 App 内置运行时，无需本机 Node 仓库。")
           .font(.caption)
           .foregroundStyle(.secondary)
+
+        DisclosureGroup("开发者选项") {
+          TextField("仓库根目录（仅无内置包时回退）", text: $model.agentRepoPath)
+            .textFieldStyle(.roundedBorder)
+            .onChange(of: model.agentRepoPath) { _, _ in
+              model.saveAgentSettings()
+            }
+          Text("正常发行版带 MentorAgent.tgz，会解压到 Application Support。此处仅给从源码跑、尚未 package:agent 时用。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
 
         HStack {
           Button("重新检测 / 拉起") {
@@ -109,5 +110,17 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .frame(maxWidth: 640, alignment: .leading)
+  }
+
+  private var runtimeLabel: String {
+    if model.agentManagedByApp {
+      switch model.agentRuntimeSource {
+      case "bundled": return "内置包（已解压）"
+      case "repo-npm": return "开发回退（npm run agent）"
+      default: return "由本 App 拉起"
+      }
+    }
+    if model.agentReachable { return "外部已运行" }
+    return model.hasBundledAgent ? "内置包可用（未启动）" : "无内置包"
   }
 }

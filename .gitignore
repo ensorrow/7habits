@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Packaged mentor runtime (built by `npm run package:agent`; CI embeds into .app)
+macos/SevenHabitsMentor/Resources/MentorAgent.tgz
+macos/.ci-derived/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

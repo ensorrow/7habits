@@ -51,6 +51,8 @@ final class AppModel: ObservableObject {
   @Published var agentRepoPath: String = ""
   @Published var agentAutoStart = true
   @Published var qoderPat: String = ""
+  @Published var agentRuntimeSource: String = "none"
+  @Published var hasBundledAgent = false
 
   @Published var menubarBadge = false
   @Published var pendingInterventionMessage: String?
@@ -84,6 +86,7 @@ final class AppModel: ObservableObject {
     agentRepoPath = agentLauncher.repoPath
     agentAutoStart = agentLauncher.autoStart
     qoderPat = agentLauncher.qoderPat
+    hasBundledAgent = agentLauncher.hasBundledRuntime
   }
 
   var phaseLabel: String {
@@ -114,10 +117,12 @@ final class AppModel: ObservableObject {
   /// Connect to :8787; if down, optionally spawn `npm run agent` from the repo.
   func ensureAgentReady() async {
     syncAgentSettingsToLauncher()
+    hasBundledAgent = agentLauncher.hasBundledRuntime
     let ok = await agentLauncher.ensureRunning {
       (try? await self.api.health()) ?? false
     }
     agentManagedByApp = agentLauncher.startedByApp
+    agentRuntimeSource = agentLauncher.runtimeSource
     if !ok, let err = agentLauncher.lastError {
       lastMentorError = err
     }
@@ -286,7 +291,7 @@ final class AppModel: ObservableObject {
       if !agentReachable {
         lastMentorError =
           agentLauncher.lastError
-          ?? "无法连接导师服务（:8787）。请在设置里确认仓库路径，或手动 `npm run agent`。"
+          ?? "无法连接导师服务（:8787）。发行版应自带 MentorAgent 运行时；开发构建请先 npm run package:agent。"
         return
       }
     }

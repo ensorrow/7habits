@@ -45,6 +45,7 @@ Package manager is **npm** (`package-lock.json`). Standard scripts are in `packa
 - Dev server: `npm run dev` → Vite on `http://localhost:5173`.
 - Web + mentor agent API: `npm run dev:all` (Vite + `npm run agent` on **8787**).
 - Mentor agent only: `npm run agent`.
+- Package portable mentor runtime for macOS app: `npm run package:agent` → `macos/.../Resources/MentorAgent.tgz` (Node + esbuild bundle; app extracts on first launch).
 - Lint: `npm run lint` (oxlint).
 - Test: `npm test` (Vitest, headless).
 - Build: `npm run build` (`tsc -b && vite build`).

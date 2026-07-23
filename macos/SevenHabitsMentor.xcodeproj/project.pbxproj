@@ -16,6 +16,7 @@
 		A10000000000000000000007 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* DashboardView.swift */; };
 		A10000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* SettingsView.swift */; };
 		A1000000000000000000000C /* AgentProcessLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* AgentProcessLauncher.swift */; };
+		A1000000000000000000000D /* MentorAgent.tgz in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* MentorAgent.tgz */; };
 		A10000000000000000000009 /* SevenHabitsCore in Frameworks */ = {isa = PBXBuildFile; productRef = A50000000000000000000001 /* SevenHabitsCore */; };
 		A1000000000000000000000A /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* EventKit.framework */; };
 		A1000000000000000000000B /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* UserNotifications.framework */; };
@@ -31,6 +32,7 @@
 		A20000000000000000000007 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A2000000000000000000000E /* AgentProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProcessLauncher.swift; sourceTree = "<group>"; };
+		A2000000000000000000000F /* MentorAgent.tgz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = MentorAgent.tgz; sourceTree = "<group>"; };
 		A20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000000000000000000000C /* SevenHabitsMentor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SevenHabitsMentor.entitlements; sourceTree = "<group>"; };
 		A2000000000000000000000A /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
@@ -108,6 +110,7 @@
 			children = (
 				A20000000000000000000009 /* Info.plist */,
 				A2000000000000000000000C /* SevenHabitsMentor.entitlements */,
+				A2000000000000000000000F /* MentorAgent.tgz */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -119,6 +122,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A80000000000000000000003 /* Build configuration list for PBXNativeTarget "SevenHabitsMentor" */;
 			buildPhases = (
+				A70000000000000000000003 /* Package Mentor Agent */,
 				A70000000000000000000001 /* Sources */,
 				A30000000000000000000001 /* Frameworks */,
 				A70000000000000000000002 /* Resources */,
@@ -177,10 +181,35 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000000000000000000000D /* MentorAgent.tgz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A70000000000000000000003 /* Package Mentor Agent */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Package Mentor Agent";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/SevenHabitsMentor/Resources/MentorAgent.tgz",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nREPO_ROOT=\"${SRCROOT}/..\"\ncd \"$REPO_ROOT\"\nif ! command -v npm >/dev/null 2>&1; then\n  export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif [ ! -f node_modules/esbuild/package.json ]; then\n  npm install\nfi\nnpm run package:agent\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A70000000000000000000001 /* Sources */ = {
