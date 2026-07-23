@@ -1,4 +1,6 @@
 import { respond, type MentorContext, type MentorReply } from './mentor';
+import { understandLocal } from './understanding';
+import type { UnderstandingResult } from '../types/understanding';
 
 export type MentorAgentSource = 'qoder' | 'local';
 
@@ -11,6 +13,8 @@ export interface MentorAgentStatus {
 export interface MentorTurnResponse {
   reply: MentorReply;
   source: MentorAgentSource;
+  understanding?: UnderstandingResult;
+  understandingSource?: 'model' | 'local';
   error?: string;
 }
 
@@ -48,15 +52,19 @@ export async function requestMentorTurn(
         context,
         userText,
         useAgent,
+        useUnderstanding: useAgent,
         accessToken: accessToken?.trim() || undefined,
       }),
     });
     if (!res.ok) throw new Error(`turn ${res.status}`);
     return (await res.json()) as MentorTurnResponse;
   } catch {
+    const understanding = understandLocal(context, userText);
     return {
-      reply: respond(context, userText),
+      reply: respond(context, userText, understanding),
       source: 'local',
+      understanding,
+      understandingSource: 'local',
       error: '导师 Agent 服务不可用，已回退本地规则引擎。',
     };
   }
