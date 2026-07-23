@@ -230,8 +230,8 @@ final class AgentProcessLauncher {
     proc.standardError = handle
 
     proc.terminationHandler = { [weak self] finished in
+      guard let self else { return }
       Task { @MainActor in
-        guard let self else { return }
         if self.process == finished {
           self.process = nil
           if finished.terminationStatus != 0, self.lastError == nil {
