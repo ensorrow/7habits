@@ -190,6 +190,39 @@ final class CalendarAnalyzerTests: XCTestCase {
     XCTAssertEqual(json["userText"] as? String, "同意")
   }
 
+  func testMentorTurnResponseDecodesNumericHabitFocus() throws {
+    let json = """
+    {
+      "reply": {
+        "content": "你刚说的「不得不」，可以改成「我选择……」吗？",
+        "habitFocus": [1, 2],
+        "nextColdStartStep": "roles-draft",
+        "phase": "cold-start"
+      },
+      "source": "local"
+    }
+    """.data(using: .utf8)!
+
+    let decoded = try JSONDecoder().decode(MentorTurnResponse.self, from: json)
+    XCTAssertEqual(decoded.reply.habitFocus, [1, 2])
+    XCTAssertEqual(decoded.reply.nextColdStartStep, .rolesDraft)
+    XCTAssertEqual(decoded.source, "local")
+  }
+
+  func testDescribeDecodingTypeMismatchIsReadable() {
+    struct Sample: Decodable { let habitFocus: [Int] }
+    let data = #"{"habitFocus":["1"]}"#.data(using: .utf8)!
+    do {
+      _ = try JSONDecoder().decode(Sample.self, from: data)
+      XCTFail("expected type mismatch")
+    } catch {
+      let message = MentorAPIClient.describeDecoding(error)
+      XCTAssertTrue(message.contains("字段类型不符"), message)
+      XCTAssertTrue(message.contains("habitFocus"), message)
+      XCTAssertFalse(message.contains("Debug description"), message)
+    }
+  }
+
   func testPersistedStateRoundTrip() throws {
     let state = PersistedMentorState(
       messages: [],
