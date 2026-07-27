@@ -85,7 +85,7 @@
 .menubar-btn.active {
   color: var(--accent);
   background: var(--accent-wash);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .menubar-btn.has-badge::after {
@@ -348,7 +348,7 @@
   padding: 0.45rem 0.82rem;
   border-radius: var(--radius-sm);
   font-size: 0.86rem;
-  font-weight: 550;
+  font-weight: 500;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease,
     transform 0.15s ease;
 }
@@ -469,7 +469,7 @@
 }
 
 .role-name {
-  font-weight: 650;
+  font-weight: 600;
   font-size: 0.94rem;
 }
 
