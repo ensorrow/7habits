@@ -334,7 +334,7 @@ function RoleDashboard() {
               className="fill"
               style={{
                 width: `${account.balance}%`,
-                background: 'linear-gradient(90deg, #1B5A4B, #3D7A5C)',
+                background: 'linear-gradient(90deg, #0F4A3C, #2F6B4F)',
               }}
             />
           </div>
@@ -562,6 +562,8 @@ export default function App() {
   const bootstrap = useAppStore((s) => s.bootstrap);
   const messages = useAppStore((s) => s.messages);
   const hydrated = useAppStore((s) => s.hydrated);
+  const roles = useAppStore((s) => s.roles);
+  const showDashBesideChat = view === 'chat' && roles.length > 0;
 
   useEffect(() => {
     bootstrap();
@@ -577,11 +579,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <MenuBar />
-      <main className={`workspace ${view === 'chat' ? 'split' : ''}`}>
+      <main className={`workspace ${showDashBesideChat ? 'split' : ''}`}>
         {view === 'chat' && (
           <>
             <ChatWindow />
-            <RoleDashboard />
+            {showDashBesideChat && <RoleDashboard />}
           </>
         )}
         {view === 'dashboard' && <RoleDashboard />}

@@ -1,24 +1,25 @@
 :root {
-  --paper: #e6ebe7;
-  --paper-mid: #dde4df;
-  --ink: #1a221f;
-  --ink-soft: #3a4742;
-  --muted: #6b7872;
-  --line: rgba(26, 34, 31, 0.11);
-  --line-strong: rgba(26, 34, 31, 0.18);
-  --surface: rgba(252, 253, 251, 0.78);
-  --surface-solid: #f7f9f7;
-  --accent: #1b5a4b;
-  --accent-soft: #d5e6df;
-  --accent-wash: rgba(27, 90, 75, 0.09);
-  --mentor: #214f44;
-  --danger: #9a4a3c;
-  --ok: #3d7a5c;
-  --shadow: 0 1px 0 rgba(26, 34, 31, 0.04);
-  --font-display: 'Newsreader', 'Noto Serif SC', 'Songti SC', serif;
-  --font-body: 'Figtree', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --paper: #edf1ee;
+  --paper-deep: #e2e8e4;
+  --ink: #121816;
+  --ink-soft: #2c3833;
+  --muted: #5c6a63;
+  --line: rgba(18, 24, 22, 0.1);
+  --line-strong: rgba(18, 24, 22, 0.16);
+  --surface: #fbfcfb;
+  --surface-elevated: #ffffff;
+  --accent: #0f4a3c;
+  --accent-hover: #0a3a2f;
+  --accent-soft: #d8ebe3;
+  --accent-wash: rgba(15, 74, 60, 0.08);
+  --mentor: #0f4a3c;
+  --danger: #8f3f34;
+  --ok: #2f6b4f;
+  --shadow: 0 20px 44px rgba(18, 24, 22, 0.07);
+  --font-display: 'Noto Serif SC', 'Newsreader', 'Songti SC', serif;
+  --font-body: 'Noto Sans SC', 'Figtree', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --radius: 8px;
+  --radius-sm: 5px;
   color: var(--ink);
   background: var(--paper);
   font-family: var(--font-body);
@@ -44,9 +45,9 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(900px 480px at 8% -5%, rgba(27, 90, 75, 0.12), transparent 58%),
-    radial-gradient(700px 420px at 96% 8%, rgba(90, 110, 100, 0.1), transparent 52%),
-    linear-gradient(168deg, #eef2ee 0%, #e4ebe6 42%, #dfe7e2 100%);
+    radial-gradient(1100px 520px at 0% -8%, rgba(15, 74, 60, 0.14), transparent 55%),
+    radial-gradient(800px 460px at 100% 0%, rgba(70, 95, 85, 0.09), transparent 50%),
+    linear-gradient(170deg, #f3f6f3 0%, #e8eee9 48%, #e3eae5 100%);
   background-attachment: fixed;
   position: relative;
 }
@@ -57,10 +58,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
   mix-blend-mode: multiply;
-  animation: grain-drift 18s linear infinite;
+  animation: grain-drift 22s linear infinite;
 }
 
 @keyframes grain-drift {
@@ -68,7 +69,7 @@ body::before {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(-1.5%, 1%, 0);
+    transform: translate3d(-1%, 0.8%, 0);
   }
   100% {
     transform: translate3d(0, 0, 0);
@@ -92,12 +93,13 @@ button {
 }
 
 ::selection {
-  background: rgba(27, 90, 75, 0.18);
+  background: rgba(15, 74, 60, 0.18);
 }
 
 code {
   font-size: 0.88em;
   padding: 0.08em 0.3em;
-  border-radius: 4px;
-  background: rgba(26, 34, 31, 0.06);
+  border-radius: 3px;
+  background: rgba(18, 24, 22, 0.06);
+  color: var(--ink-soft);
 }
