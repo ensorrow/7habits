@@ -1,22 +1,29 @@
 :root {
-  --ink: #0f1f1a;
-  --ink-soft: #1a3229;
-  --panel: rgba(18, 42, 34, 0.82);
-  --panel-solid: #142820;
-  --line: rgba(196, 165, 116, 0.22);
-  --brass: #c4a574;
-  --brass-bright: #e0c48a;
-  --mist: #d6e0d9;
-  --mist-dim: #9aada3;
-  --danger: #c46b5a;
-  --ok: #6fae8c;
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'Source Sans 3', 'PingFang SC', 'Noto Sans SC', sans-serif;
-  --radius: 14px;
-  color: var(--mist);
-  background: var(--ink);
+  --paper: #e6ebe7;
+  --paper-mid: #dde4df;
+  --ink: #1a221f;
+  --ink-soft: #3a4742;
+  --muted: #6b7872;
+  --line: rgba(26, 34, 31, 0.11);
+  --line-strong: rgba(26, 34, 31, 0.18);
+  --surface: rgba(252, 253, 251, 0.78);
+  --surface-solid: #f7f9f7;
+  --accent: #1b5a4b;
+  --accent-soft: #d5e6df;
+  --accent-wash: rgba(27, 90, 75, 0.09);
+  --mentor: #214f44;
+  --danger: #9a4a3c;
+  --ok: #3d7a5c;
+  --shadow: 0 1px 0 rgba(26, 34, 31, 0.04);
+  --font-display: 'Newsreader', 'Noto Serif SC', 'Songti SC', serif;
+  --font-body: 'Figtree', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --radius: 10px;
+  --radius-sm: 6px;
+  color: var(--ink);
+  background: var(--paper);
   font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -35,11 +42,42 @@ body,
 
 body {
   min-height: 100vh;
+  color: var(--ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(47, 111, 94, 0.35), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(184, 107, 58, 0.18), transparent 55%),
-    linear-gradient(165deg, #0c1814 0%, #13261f 45%, #0f1a16 100%);
+    radial-gradient(900px 480px at 8% -5%, rgba(27, 90, 75, 0.12), transparent 58%),
+    radial-gradient(700px 420px at 96% 8%, rgba(90, 110, 100, 0.1), transparent 52%),
+    linear-gradient(168deg, #eef2ee 0%, #e4ebe6 42%, #dfe7e2 100%);
   background-attachment: fixed;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  animation: grain-drift 18s linear infinite;
+}
+
+@keyframes grain-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-1.5%, 1%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 button,
@@ -54,5 +92,12 @@ button {
 }
 
 ::selection {
-  background: rgba(196, 165, 116, 0.35);
+  background: rgba(27, 90, 75, 0.18);
+}
+
+code {
+  font-size: 0.88em;
+  padding: 0.08em 0.3em;
+  border-radius: 4px;
+  background: rgba(26, 34, 31, 0.06);
 }
