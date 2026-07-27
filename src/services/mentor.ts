@@ -305,24 +305,24 @@ function inferRoles(
     }
   };
 
-  push('engineer', '工程师', '日历显示工作占绝大多数时间', '#2F6F5E');
+  push('engineer', '工程师', '日历显示工作占绝大多数时间', '#0F4A3C');
 
   if (hints.includes('father')) {
-    push('father', '父亲', '有人在日历之外等你', '#B86B3A');
+    push('father', '父亲', '有人在日历之外等你', '#7A4B38');
   } else {
-    push('family', '家人', '关系需要时间喂养', '#B86B3A');
+    push('family', '家人', '关系需要时间喂养', '#7A4B38');
   }
 
   if (hints.includes('health')) {
-    push('health', '健康的人', '想把时间投给身体', '#4A7C8C');
+    push('health', '健康的人', '想把时间投给身体', '#355F6E');
   } else if (hints.includes('learner')) {
-    push('learner', '学习者', '「花得值」往往指向成长', '#6B7A4A');
+    push('learner', '学习者', '「花得值」往往指向成长', '#4F6140');
   } else {
-    push('health', '健康的人', '周末空着，却很少写进「为自己」的事', '#4A7C8C');
+    push('health', '健康的人', '周末空着，却很少写进「为自己」的事', '#355F6E');
   }
 
   if (hints.includes('partner')) {
-    push('partner', '伴侣', '亲密关系也是角色', '#8B5E6B');
+    push('partner', '伴侣', '亲密关系也是角色', '#6E4A56');
   }
 
   return roles.slice(0, 4);

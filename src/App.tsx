@@ -134,7 +134,7 @@ function ChatWindow() {
     <section className="panel" aria-label="导师对话">
       <div className="panel-header">
         <h1>7习惯导师</h1>
-        <p>不是帮你挤时间的秘书——在具体事件里，让你看见自己的范式。</p>
+        <p>镜子，不是秘书。在具体事件里，让你看见自己的范式。</p>
         {source && (
           <p className="engine-badge" data-source={source}>
             {source === 'qoder' ? 'Qoder Agent' : '本地规则引擎'}
@@ -268,12 +268,12 @@ function RoleDashboard() {
   if (roles.length === 0) {
     return (
       <section className="panel" aria-label="角色仪表盘">
-        <div className="panel-header">
-          <h2>角色仪表盘</h2>
-          <p>日历数据按角色投影——导师说话的证据面板。</p>
-        </div>
-        <div className="empty-dashboard">
-          完成冷启动后，这里会显示各角色本周投入占比。
+      <div className="panel-header">
+        <h2>角色仪表盘</h2>
+        <p>时间花在哪，价值观就在哪——导师说话的证据面。</p>
+      </div>
+      <div className="empty-dashboard">
+          完成冷启动后，这里会显示各角色本周投入。
           <br />
           先回到对话，让导师看见你。
         </div>
@@ -285,7 +285,7 @@ function RoleDashboard() {
     <section className="panel" aria-label="角色仪表盘">
       <div className="panel-header">
         <h2>角色仪表盘</h2>
-        <p>本周投入 vs 你说重要的事。第 {weekCount + 1} 周观察中。</p>
+        <p>本周投入，对照你说重要的事。第 {weekCount + 1} 周。</p>
       </div>
       <div className="stat-grid">
         {roleHours.map((r) => {
@@ -334,7 +334,7 @@ function RoleDashboard() {
               className="fill"
               style={{
                 width: `${account.balance}%`,
-                background: 'linear-gradient(90deg, #2F6F5E, #C4A574)',
+                background: 'linear-gradient(90deg, #0F4A3C, #2F6B4F)',
               }}
             />
           </div>
@@ -562,6 +562,8 @@ export default function App() {
   const bootstrap = useAppStore((s) => s.bootstrap);
   const messages = useAppStore((s) => s.messages);
   const hydrated = useAppStore((s) => s.hydrated);
+  const roles = useAppStore((s) => s.roles);
+  const showDashBesideChat = view === 'chat' && roles.length > 0;
 
   useEffect(() => {
     bootstrap();
@@ -577,11 +579,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <MenuBar />
-      <main className={`workspace ${view === 'chat' ? 'split' : ''}`}>
+      <main className={`workspace ${showDashBesideChat ? 'split' : ''}`}>
         {view === 'chat' && (
           <>
             <ChatWindow />
-            <RoleDashboard />
+            {showDashBesideChat && <RoleDashboard />}
           </>
         )}
         {view === 'dashboard' && <RoleDashboard />}

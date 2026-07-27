@@ -1,22 +1,30 @@
 :root {
-  --ink: #0f1f1a;
-  --ink-soft: #1a3229;
-  --panel: rgba(18, 42, 34, 0.82);
-  --panel-solid: #142820;
-  --line: rgba(196, 165, 116, 0.22);
-  --brass: #c4a574;
-  --brass-bright: #e0c48a;
-  --mist: #d6e0d9;
-  --mist-dim: #9aada3;
-  --danger: #c46b5a;
-  --ok: #6fae8c;
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'Source Sans 3', 'PingFang SC', 'Noto Sans SC', sans-serif;
-  --radius: 14px;
-  color: var(--mist);
-  background: var(--ink);
+  --paper: #edf1ee;
+  --paper-deep: #e2e8e4;
+  --ink: #121816;
+  --ink-soft: #2c3833;
+  --muted: #5c6a63;
+  --line: rgba(18, 24, 22, 0.1);
+  --line-strong: rgba(18, 24, 22, 0.16);
+  --surface: #fbfcfb;
+  --surface-elevated: #ffffff;
+  --accent: #0f4a3c;
+  --accent-hover: #0a3a2f;
+  --accent-soft: #d8ebe3;
+  --accent-wash: rgba(15, 74, 60, 0.08);
+  --mentor: #0f4a3c;
+  --danger: #8f3f34;
+  --ok: #2f6b4f;
+  --shadow: 0 20px 44px rgba(18, 24, 22, 0.07);
+  --font-display: 'Noto Serif SC', 'Newsreader', 'Songti SC', serif;
+  --font-body: 'Noto Sans SC', 'Figtree', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --radius: 8px;
+  --radius-sm: 5px;
+  color: var(--ink);
+  background: var(--paper);
   font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -35,11 +43,42 @@ body,
 
 body {
   min-height: 100vh;
+  color: var(--ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(47, 111, 94, 0.35), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(184, 107, 58, 0.18), transparent 55%),
-    linear-gradient(165deg, #0c1814 0%, #13261f 45%, #0f1a16 100%);
+    radial-gradient(1100px 520px at 0% -8%, rgba(15, 74, 60, 0.14), transparent 55%),
+    radial-gradient(800px 460px at 100% 0%, rgba(70, 95, 85, 0.09), transparent 50%),
+    linear-gradient(170deg, #f3f6f3 0%, #e8eee9 48%, #e3eae5 100%);
   background-attachment: fixed;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  animation: grain-drift 22s linear infinite;
+}
+
+@keyframes grain-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-1%, 0.8%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 button,
@@ -54,5 +93,13 @@ button {
 }
 
 ::selection {
-  background: rgba(196, 165, 116, 0.35);
+  background: rgba(15, 74, 60, 0.18);
+}
+
+code {
+  font-size: 0.88em;
+  padding: 0.08em 0.3em;
+  border-radius: 3px;
+  background: rgba(18, 24, 22, 0.06);
+  color: var(--ink-soft);
 }
