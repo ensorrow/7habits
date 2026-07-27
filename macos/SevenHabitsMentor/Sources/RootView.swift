@@ -17,12 +17,14 @@ struct RootView: View {
         case .chat:
           HStack(spacing: 0) {
             ChatView(model: model)
-            Rectangle()
-              .fill(MentorTheme.line)
-              .frame(width: 1)
-            DashboardView(model: model)
-              .frame(width: 320)
-              .background(MentorTheme.paper.opacity(0.55))
+            if !model.roles.isEmpty {
+              Rectangle()
+                .fill(MentorTheme.line)
+                .frame(width: 1)
+              DashboardView(model: model)
+                .frame(width: 320)
+                .background(MentorTheme.paper.opacity(0.55))
+            }
           }
         case .dashboard:
           DashboardView(model: model)
