@@ -15,6 +15,7 @@
 		A10000000000000000000006 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* ChatView.swift */; };
 		A10000000000000000000007 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* DashboardView.swift */; };
 		A10000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* SettingsView.swift */; };
+		A10000000000000000000010 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Theme.swift */; };
 		A1000000000000000000000C /* AgentProcessLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* AgentProcessLauncher.swift */; };
 		A1000000000000000000000D /* MentorAgent.tgz in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* MentorAgent.tgz */; };
 		A10000000000000000000009 /* SevenHabitsCore in Frameworks */ = {isa = PBXBuildFile; productRef = A50000000000000000000001 /* SevenHabitsCore */; };
@@ -31,6 +32,7 @@
 		A20000000000000000000006 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A2000000000000000000000E /* AgentProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProcessLauncher.swift; sourceTree = "<group>"; };
 		A2000000000000000000000F /* MentorAgent.tgz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = MentorAgent.tgz; sourceTree = "<group>"; };
 		A20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				A20000000000000000000006 /* ChatView.swift */,
 				A20000000000000000000007 /* DashboardView.swift */,
 				A20000000000000000000008 /* SettingsView.swift */,
+				A20000000000000000000010 /* Theme.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -225,6 +228,7 @@
 				A10000000000000000000006 /* ChatView.swift in Sources */,
 				A10000000000000000000007 /* DashboardView.swift in Sources */,
 				A10000000000000000000008 /* SettingsView.swift in Sources */,
+				A10000000000000000000010 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

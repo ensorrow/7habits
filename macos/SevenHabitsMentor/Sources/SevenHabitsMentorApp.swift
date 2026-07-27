@@ -24,6 +24,7 @@ struct SevenHabitsMentorApp: App {
     Window("7习惯导师", id: "mentor-main") {
       RootView(model: model)
         .frame(minWidth: 880, minHeight: 560)
+        .preferredColorScheme(.light)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
           model.stopManagedAgent()
         }

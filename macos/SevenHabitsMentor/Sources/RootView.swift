@@ -17,21 +17,25 @@ struct RootView: View {
         case .chat:
           HStack(spacing: 0) {
             ChatView(model: model)
-            Divider()
+            Rectangle()
+              .fill(MentorTheme.line)
+              .frame(width: 1)
             DashboardView(model: model)
               .frame(width: 320)
+              .background(MentorTheme.paper.opacity(0.55))
           }
         case .dashboard:
           DashboardView(model: model)
-            .padding()
+            .padding(20)
         case .settings:
           SettingsView(model: model)
-            .padding()
+            .padding(20)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .background(Color(nsColor: .windowBackgroundColor))
+    .background(MentorTheme.paper)
+    .tint(MentorTheme.accent)
     .task {
       await model.bootstrap()
     }
@@ -52,10 +56,10 @@ private struct MentorErrorBanner: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("导师暂时没接上")
           .font(.subheadline.weight(.semibold))
-          .foregroundStyle(.primary)
+          .foregroundStyle(MentorTheme.ink)
         Text(message)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(MentorTheme.muted)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -63,7 +67,7 @@ private struct MentorErrorBanner: View {
       Button(action: onDismiss) {
         Image(systemName: "xmark")
           .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(MentorTheme.muted)
           .padding(4)
           .contentShape(Rectangle())
       }
@@ -74,7 +78,7 @@ private struct MentorErrorBanner: View {
     .padding(.vertical, 10)
     .background(
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color(red: 0.96, green: 0.91, blue: 0.82))
+        .fill(MentorTheme.warnSoft)
     )
     .overlay(
       RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -91,17 +95,14 @@ struct HeaderBar: View {
   var body: some View {
     HStack(spacing: 16) {
       HStack(spacing: 10) {
-        Text("7")
-          .font(.system(size: 20, weight: .bold, design: .rounded))
-          .frame(width: 32, height: 32)
-          .background(Color.accentColor.opacity(0.15))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
+        MentorMark(size: 34)
         VStack(alignment: .leading, spacing: 2) {
           Text("7习惯导师")
-            .font(.title3.weight(.semibold))
-          Text(model.phaseLabel)
+            .font(.system(.title3, design: .serif).weight(.semibold))
+            .foregroundStyle(MentorTheme.ink)
+          Text(headerSubtitle)
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(MentorTheme.muted)
         }
       }
       Spacer()
@@ -112,9 +113,22 @@ struct HeaderBar: View {
       }
       .pickerStyle(.segmented)
       .frame(maxWidth: 320)
+      .labelsHidden()
     }
-    .padding(.horizontal, 16)
+    .padding(.horizontal, 18)
     .padding(.vertical, 12)
-    .background(.bar)
+    .background(MentorTheme.surface.opacity(0.92))
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(MentorTheme.line)
+        .frame(height: 1)
+    }
+  }
+
+  private var headerSubtitle: String {
+    if model.phase == .daily {
+      return "\(model.phaseLabel) · 情感账户 \(MentorTheme.levelLabel(model.emotionalAccount.level))"
+    }
+    return model.phaseLabel
   }
 }
