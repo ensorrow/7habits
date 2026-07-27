@@ -61,7 +61,7 @@ public struct MentorAPIClient: Sendable {
     do {
       return try decoder.decode(MentorAgentStatus.self, from: data)
     } catch {
-      throw MentorAPIError.decoding(String(describing: error))
+      throw MentorAPIError.decoding(Self.describeDecoding(error))
     }
   }
 
@@ -76,7 +76,7 @@ public struct MentorAPIClient: Sendable {
     do {
       return try decoder.decode(MentorTurnResponse.self, from: data)
     } catch {
-      throw MentorAPIError.decoding(String(describing: error))
+      throw MentorAPIError.decoding(Self.describeDecoding(error))
     }
   }
 
@@ -91,8 +91,50 @@ public struct MentorAPIClient: Sendable {
     do {
       return try decoder.decode(InterventionEvalResponse.self, from: data)
     } catch {
-      throw MentorAPIError.decoding(String(describing: error))
+      throw MentorAPIError.decoding(Self.describeDecoding(error))
     }
+  }
+
+  /// Short, readable DecodingError summary (avoid dumping Swift debug dumps into the UI).
+  static func describeDecoding(_ error: Error) -> String {
+    guard let decoding = error as? DecodingError else {
+      return error.localizedDescription
+    }
+    switch decoding {
+    case .typeMismatch(let type, let context):
+      let path = codingPath(context.codingPath)
+      return "字段类型不符：\(path.isEmpty ? "?" : path) 期望 \(type)"
+    case .valueNotFound(let type, let context):
+      let path = codingPath(context.codingPath)
+      return "缺少值：\(path.isEmpty ? "?" : path) 期望 \(type)"
+    case .keyNotFound(let key, let context):
+      let path = codingPath(context.codingPath + [key])
+      return "缺少字段：\(path)"
+    case .dataCorrupted(let context):
+      let path = codingPath(context.codingPath)
+      if path.isEmpty {
+        return "数据无法解析"
+      }
+      return "数据无法解析：\(path)"
+    @unknown default:
+      return "数据无法解析"
+    }
+  }
+
+  private static func codingPath(_ path: [CodingKey]) -> String {
+    var parts: [String] = []
+    for key in path {
+      if let index = key.intValue {
+        if parts.isEmpty {
+          parts.append("[\(index)]")
+        } else {
+          parts[parts.count - 1] += "[\(index)]"
+        }
+      } else if !key.stringValue.isEmpty {
+        parts.append(key.stringValue)
+      }
+    }
+    return parts.joined(separator: ".")
   }
 
   private func data(for request: URLRequest) async throws -> (Data, URLResponse) {

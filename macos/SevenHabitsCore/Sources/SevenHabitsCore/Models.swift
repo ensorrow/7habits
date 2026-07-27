@@ -386,7 +386,8 @@ public struct MentorReply: Codable, Sendable {
   public var scheduleReview: Bool?
   public var phase: AppPhase?
   public var extractClue: String?
-  public var habitFocus: [String]?
+  /// Habit mechanism ids for this turn (1…7), matching `HabitId` in `src/services/habits.ts`.
+  public var habitFocus: [Int]?
   public var proposeMission: String?
   public var markPromiseAsked: Bool?
   public var markPromiseFulfilled: Bool?
