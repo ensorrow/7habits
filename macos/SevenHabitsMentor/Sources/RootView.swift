@@ -17,28 +17,30 @@ struct RootView: View {
         case .chat:
           HStack(spacing: 0) {
             ChatView(model: model)
-            Divider()
-            DashboardView(model: model)
-              .frame(width: 320)
+            if !model.roles.isEmpty {
+              Rectangle()
+                .fill(MentorTheme.lineStrong)
+                .frame(width: 1)
+              DashboardView(model: model, compact: true)
+                .frame(width: 340)
+            }
           }
         case .dashboard:
-          DashboardView(model: model)
-            .padding()
+          DashboardView(model: model, compact: false)
         case .settings:
           SettingsView(model: model)
-            .padding()
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .background(Color(nsColor: .windowBackgroundColor))
+    .background(MentorTheme.paper)
+    .tint(MentorTheme.accent)
     .task {
       await model.bootstrap()
     }
   }
 }
 
-/// Soft inset notice — not a full-bleed red strip.
 private struct MentorErrorBanner: View {
   let message: String
   let onDismiss: () -> Void
@@ -52,10 +54,10 @@ private struct MentorErrorBanner: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("导师暂时没接上")
           .font(.subheadline.weight(.semibold))
-          .foregroundStyle(.primary)
+          .foregroundStyle(MentorTheme.ink)
         Text(message)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(MentorTheme.muted)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -63,7 +65,7 @@ private struct MentorErrorBanner: View {
       Button(action: onDismiss) {
         Image(systemName: "xmark")
           .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(MentorTheme.muted)
           .padding(4)
           .contentShape(Rectangle())
       }
@@ -73,11 +75,11 @@ private struct MentorErrorBanner: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .background(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color(red: 0.96, green: 0.91, blue: 0.82))
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .fill(MentorTheme.warnSoft)
     )
     .overlay(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
         .strokeBorder(Color(red: 0.82, green: 0.68, blue: 0.42).opacity(0.45), lineWidth: 1)
     )
     .padding(.horizontal, 16)
@@ -91,30 +93,43 @@ struct HeaderBar: View {
   var body: some View {
     HStack(spacing: 16) {
       HStack(spacing: 10) {
-        Text("7")
-          .font(.system(size: 20, weight: .bold, design: .rounded))
-          .frame(width: 32, height: 32)
-          .background(Color.accentColor.opacity(0.15))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
+        MentorMark(size: 36)
         VStack(alignment: .leading, spacing: 2) {
           Text("7习惯导师")
-            .font(.title3.weight(.semibold))
-          Text(model.phaseLabel)
+            .font(.system(size: 20, weight: .bold, design: .serif))
+            .foregroundStyle(MentorTheme.ink)
+          Text(headerSubtitle)
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(MentorTheme.muted)
         }
       }
-      Spacer()
-      Picker("界面", selection: $model.pane) {
+      Spacer(minLength: 12)
+      HStack(spacing: 2) {
         ForEach(AppModel.Pane.allCases) { pane in
-          Text(pane.title).tag(pane)
+          MentorTabButton(
+            title: pane.title,
+            selected: model.pane == pane
+          ) {
+            model.pane = pane
+          }
         }
       }
-      .pickerStyle(.segmented)
-      .frame(maxWidth: 320)
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
-    .background(.bar)
+    .padding(.horizontal, 18)
+    .padding(.top, 12)
+    .padding(.bottom, 10)
+    .background(MentorTheme.surface.opacity(0.96))
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(MentorTheme.lineStrong)
+        .frame(height: 1)
+    }
+  }
+
+  private var headerSubtitle: String {
+    if model.phase == .daily {
+      return "\(model.phaseLabel) · 情感账户 \(MentorTheme.levelLabel(model.emotionalAccount.level))"
+    }
+    return model.phaseLabel
   }
 }
