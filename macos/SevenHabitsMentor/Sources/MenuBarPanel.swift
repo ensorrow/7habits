@@ -9,10 +9,10 @@ struct MenuBarPanel: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
-        MentorMark(size: 28)
+        MentorMark(size: 30)
         VStack(alignment: .leading, spacing: 2) {
           Text("7习惯导师")
-            .font(.system(.headline, design: .serif).weight(.semibold))
+            .font(.system(size: 16, weight: .bold, design: .serif))
             .foregroundStyle(MentorTheme.ink)
           Text(model.phaseLabel)
             .font(.caption)
@@ -22,25 +22,26 @@ struct MenuBarPanel: View {
       }
 
       if let pending = model.pendingInterventionMessage {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
           Text("导师有话说")
-            .font(.system(.subheadline, design: .serif).weight(.semibold))
+            .font(.system(size: 14, weight: .semibold, design: .serif))
             .foregroundStyle(MentorTheme.accent)
           Text(pending)
             .font(.caption)
             .foregroundStyle(MentorTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
           Button("打开对话") {
             model.clearBadge()
             openWindow(id: "mentor-main")
           }
           .buttonStyle(MentorPrimaryButtonStyle())
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(MentorTheme.accentSoft.opacity(0.65))
+        .background(MentorTheme.mentorWash)
         .overlay(
           RoundedRectangle(cornerRadius: MentorTheme.radius, style: .continuous)
-            .strokeBorder(MentorTheme.accent.opacity(0.25), lineWidth: 1)
+            .strokeBorder(MentorTheme.accent.opacity(0.22), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: MentorTheme.radius, style: .continuous))
       }
@@ -58,9 +59,7 @@ struct MenuBarPanel: View {
       }
       .buttonStyle(MentorGhostButtonStyle())
 
-      Rectangle()
-        .fill(MentorTheme.line)
-        .frame(height: 1)
+      MentorHairline()
         .padding(.vertical, 2)
 
       Button("刷新日历") {
@@ -78,7 +77,7 @@ struct MenuBarPanel: View {
       .keyboardShortcut("q")
     }
     .padding(14)
-    .frame(width: 288)
+    .frame(width: 300)
     .background(MentorTheme.paper)
     .tint(MentorTheme.accent)
   }

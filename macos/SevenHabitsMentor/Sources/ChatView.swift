@@ -7,31 +7,31 @@ struct ChatView: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack(alignment: .firstTextBaseline) {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
           Text("7习惯导师")
-            .font(.system(.title, design: .serif).weight(.bold))
+            .font(.system(size: 30, weight: .bold, design: .serif))
             .foregroundStyle(MentorTheme.ink)
           Text("镜子，不是秘书。在具体事件里，让你看见自己的范式。")
-            .font(.callout)
+            .font(.system(size: 14))
             .foregroundStyle(MentorTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
           if let source = model.lastMentorSource {
             Text(source == "qoder" ? "Qoder Agent" : "本地规则引擎")
-              .font(.caption2.weight(.semibold))
-              .tracking(0.6)
+              .font(.system(size: 10, weight: .bold))
+              .tracking(1.0)
               .textCase(.uppercase)
-              .foregroundStyle(MentorTheme.muted)
+              .foregroundStyle(MentorTheme.accent)
               .padding(.top, 2)
           }
         }
         Spacer(minLength: 0)
       }
-      .padding(.horizontal, 18)
-      .padding(.top, 16)
-      .padding(.bottom, 12)
+      .padding(.horizontal, 20)
+      .padding(.top, 18)
+      .padding(.bottom, 14)
       .background(MentorTheme.surface)
       .overlay(alignment: .bottom) {
-        Rectangle().fill(MentorTheme.line).frame(height: 1)
+        Rectangle().fill(MentorTheme.lineStrong).frame(height: 1)
       }
 
       ScrollViewReader { proxy in

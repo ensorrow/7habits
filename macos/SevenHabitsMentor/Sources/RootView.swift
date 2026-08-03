@@ -19,19 +19,16 @@ struct RootView: View {
             ChatView(model: model)
             if !model.roles.isEmpty {
               Rectangle()
-                .fill(MentorTheme.line)
+                .fill(MentorTheme.lineStrong)
                 .frame(width: 1)
-              DashboardView(model: model)
-                .frame(width: 320)
-                .background(MentorTheme.paper.opacity(0.55))
+              DashboardView(model: model, compact: true)
+                .frame(width: 340)
             }
           }
         case .dashboard:
-          DashboardView(model: model)
-            .padding(20)
+          DashboardView(model: model, compact: false)
         case .settings:
           SettingsView(model: model)
-            .padding(20)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -44,7 +41,6 @@ struct RootView: View {
   }
 }
 
-/// Soft inset notice — not a full-bleed red strip.
 private struct MentorErrorBanner: View {
   let message: String
   let onDismiss: () -> Void
@@ -79,11 +75,11 @@ private struct MentorErrorBanner: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .background(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
         .fill(MentorTheme.warnSoft)
     )
     .overlay(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
         .strokeBorder(Color(red: 0.82, green: 0.68, blue: 0.42).opacity(0.45), lineWidth: 1)
     )
     .padding(.horizontal, 16)
@@ -97,32 +93,35 @@ struct HeaderBar: View {
   var body: some View {
     HStack(spacing: 16) {
       HStack(spacing: 10) {
-        MentorMark(size: 34)
+        MentorMark(size: 36)
         VStack(alignment: .leading, spacing: 2) {
           Text("7习惯导师")
-            .font(.system(.title3, design: .serif).weight(.semibold))
+            .font(.system(size: 20, weight: .bold, design: .serif))
             .foregroundStyle(MentorTheme.ink)
           Text(headerSubtitle)
             .font(.caption)
             .foregroundStyle(MentorTheme.muted)
         }
       }
-      Spacer()
-      Picker("界面", selection: $model.pane) {
+      Spacer(minLength: 12)
+      HStack(spacing: 2) {
         ForEach(AppModel.Pane.allCases) { pane in
-          Text(pane.title).tag(pane)
+          MentorTabButton(
+            title: pane.title,
+            selected: model.pane == pane
+          ) {
+            model.pane = pane
+          }
         }
       }
-      .pickerStyle(.segmented)
-      .frame(maxWidth: 320)
-      .labelsHidden()
     }
     .padding(.horizontal, 18)
-    .padding(.vertical, 12)
-    .background(MentorTheme.surface.opacity(0.92))
+    .padding(.top, 12)
+    .padding(.bottom, 10)
+    .background(MentorTheme.surface.opacity(0.96))
     .overlay(alignment: .bottom) {
       Rectangle()
-        .fill(MentorTheme.line)
+        .fill(MentorTheme.lineStrong)
         .frame(height: 1)
     }
   }
