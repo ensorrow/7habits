@@ -12,6 +12,18 @@ function MenuBar() {
   const badge = useAppStore((s) => s.menubarBadge);
   const phase = useAppStore((s) => s.mentorPhase);
   const level = useAppStore((s) => s.emotionalAccount.level);
+  const workbookActive = useAppStore((s) => s.workbook.active);
+
+  const sub =
+    view === 'workbook'
+      ? workbookActive?.status === 'active'
+        ? '正在填表 · 亲自试一试'
+        : '书里的表，用对话做完'
+      : phase === 'cold-start'
+        ? '认识中 · 教练模式'
+        : phase === 'weekly-review'
+          ? '周回顾进行中'
+          : `日常观察 · 情感账户 ${levelLabel(level)}`;
 
   return (
     <header className="menubar">
@@ -21,13 +33,7 @@ function MenuBar() {
         </div>
         <div>
           <div className="menubar-title">7习惯导师</div>
-          <div className="menubar-sub">
-            {phase === 'cold-start'
-              ? '认识中 · 教练模式'
-              : phase === 'weekly-review'
-                ? '周回顾进行中'
-                : `日常观察 · 情感账户 ${levelLabel(level)}`}
-          </div>
+          <div className="menubar-sub">{sub}</div>
         </div>
       </div>
       <nav className="menubar-actions" aria-label="主界面">
