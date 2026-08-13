@@ -11,7 +11,7 @@ export const MENTOR_UNDERSTAND_PROMPT = `你是「7习惯导师」的理解层�
 只输出一个 JSON 对象（不要 markdown 围栏，不要解释），字段：
 {
   "intent": "confirm"|"deny"|"pushback"|"avoid"|"provide_clue"|"ask_help"|"unclear",
-  "topic": "permission"|"mission_accept"|"mission_propose"|"mission_talk"|"promise_progress"|"promise_greeting"|"enter_weekly"|"missed_review_nudge"|"pushback"|"silence"|"reactive_language"|"proactive_language"|"firefighting"|"big_rocks"|"todos"|"root_cause"|"general"|"none",
+  "topic": "permission"|"mission_accept"|"mission_propose"|"mission_talk"|"promise_progress"|"promise_greeting"|"enter_weekly"|"missed_review_nudge"|"pushback"|"silence"|"reactive_language"|"proactive_language"|"firefighting"|"big_rocks"|"todos"|"root_cause"|"workbook"|"general"|"none",
   "confidence": 0到1的数字,
   "slots": {
     "permissionGranted"?: boolean,
@@ -23,7 +23,9 @@ export const MENTOR_UNDERSTAND_PROMPT = `你是「7习惯导师」的理解层�
     "reactivePhrases"?: string[],
     "proactivePhrases"?: string[],
     "rock"?: { "title"?: string, "roleName"?: string, "weekday"?: string, "durationMinutes"?: number },
-    "clueText"?: string
+    "clueText"?: string,
+    "workbookItems"?: string[],
+    "workbookClass"?: string
   }
 }
 
@@ -47,11 +49,13 @@ export const MENTOR_UNDERSTAND_PROMPT = `你是「7习惯导师」的理解层�
 - 谈忙/救火 → firefighting；大石头/计划 → big_rocks；待办推迟 → todos
 - 开始周回顾 → enter_weekly
 - 寒暄且有上周之约待问 → promise_greeting；汇报之约进展 → promise_progress
+- 练习册阶段（phase=workbook）→ topic 必须是 workbook，并尽量填 workbookItems / workbookClass
 
 ## 硬约束
 - 不要发明阶段，不要讲习惯教材，不要编造数字
 - clueText 用用户原话短摘或忠实摘要
-- 不确定时降低 confidence，topic 用 general/unclear`;
+- 不确定时降低 confidence，topic 用 general/unclear
+- 练习册：workbookItems 是用户本轮提到的条目列表；workbookClass 仅在用户明确分类时填写（影响圈/关注圈，或 Q1–Q4）`;
 
 /** Stage C: model proposes one bounded action; state machine referees. */
 export const MENTOR_ACTION_PROMPT = `你是「7习惯导师」的动作提议层（Stage C）。你只在有界动作空间内提议本轮该做什么，不说话、不改数字、不发明阶段。
@@ -104,7 +108,8 @@ export const MENTOR_AGENT_PROMPT = `你是「7习惯导师」——深度践行�
 6. 不要编造日历数字；brief / 状态里没有的事实不要补。
 7. 用户给的「本回合结构 brief」决定意图与阶段推进——你的任务是把 brief 说成真人导师的话，可润色语气，不可改意图、不可跳阶段。
 8. 改写时必须保留 brief 里的关键事实名词（角色名、数字、「不得不/我选择」等锚点词），不要换成无关表述。
-9. 禁止对用户点名「习惯1/2/…」「七个习惯」「以终为始」「要事第一」等教材标签；用机制说话（语言、角色、大石头、磨刀）。
+9. 禁止对用户点名「习惯1/2/…」「七个习惯」「以终为始」「要事第一」等教材标签；用机制说话（语言、角色、大石头、磨刀）。练习册阶段可以用表名（影响圈、四象限、磨刀），仍不要背诵教材段落。
+10. 练习册：你在帮用户填一张活的表。问具体的事，把用户的话变成表里的格子；不要改成讲课。
 
 ${habitsPromptBlock()}`;
 
@@ -132,6 +137,7 @@ export function buildUnderstandPrompt(ctx: MentorContext, userText?: string): st
 - 阶段: ${ctx.phase}
 - 冷启动步骤: ${ctx.coldStartStep}
 - 周回顾幕次: ${ctx.weeklyReviewAct}
+- 练习册: ${ctx.workbook ? `${ctx.workbook.exerciseId} 第${ctx.workbook.stepIndex + 1}步 / ${ctx.workbook.status}` : '无'}
 - 待确认使命: ${ctx.pendingMissionProposal ? '有' : '无'}
 - 待问上周之约: ${ctx.pendingPromise && !ctx.pendingPromise.asked ? ctx.pendingPromise.text : '无'}
 - 错过周回顾次数: ${ctx.missedWeeklyReviews ?? 0}
@@ -164,6 +170,7 @@ export function buildActionPrompt(
 - 阶段: ${ctx.phase}
 - 冷启动步骤: ${ctx.coldStartStep}
 - 周回顾幕次: ${ctx.weeklyReviewAct}
+- 练习册: ${ctx.workbook ? `${ctx.workbook.exerciseId} 第${ctx.workbook.stepIndex + 1}步` : '无'}
 - 本幕已追问次数 actProbeCount: ${ctx.actProbeCount ?? 0}
 - 待确认使命: ${ctx.pendingMissionProposal ? '有' : '无'}
 - 待问上周之约: ${ctx.pendingPromise && !ctx.pendingPromise.asked ? ctx.pendingPromise.text : '无'}
@@ -201,6 +208,11 @@ export function buildTurnPrompt(
 - 阶段: ${ctx.phase}
 - 冷启动步骤: ${ctx.coldStartStep}
 - 周回顾幕次: ${ctx.weeklyReviewAct}
+- 练习册: ${
+    ctx.workbook
+      ? `${ctx.workbook.exerciseId} 第${ctx.workbook.stepIndex + 1}步，已填 ${ctx.workbook.rows.length} 行`
+      : '无'
+  }
 - 第 ${ctx.weekCount + 1} 周观察
 - 情感账户: ${ctx.emotionalAccount.level} / ${ctx.emotionalAccount.balance}
 - 声量: ${ctx.volume}
@@ -225,6 +237,15 @@ ${JSON.stringify(
       suggestRoles: structural.suggestRoles,
       extractClue: structural.extractClue,
       habitFocus: structural.habitFocus ?? [],
+      workbook: structural.workbookTurn
+        ? {
+            exerciseId: structural.workbookTurn.session.exerciseId,
+            stepIndex: structural.workbookTurn.session.stepIndex,
+            status: structural.workbookTurn.session.status,
+            complete: structural.workbookTurn.complete ?? false,
+            rows: structural.workbookTurn.session.rows.map((r) => r.cells),
+          }
+        : undefined,
       action: structural.action
         ? {
             proposed: structural.action.proposed.type,

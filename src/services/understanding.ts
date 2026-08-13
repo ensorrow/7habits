@@ -8,6 +8,7 @@ import type {
   UnderstandingResult,
   UserIntent,
 } from '../types/understanding';
+import { splitItems } from './workbook';
 
 const PERMISSION_GRANT = /同意|好|可以|授权|允许|看吧|开始/;
 const MISSION_ACCEPT = /确认|好的|可以|写入|同意|记下/;
@@ -77,6 +78,33 @@ export function understandLocal(
     roleHints: text ? inferRoleHints(text) : undefined,
     missionTheme: text ? inferMissionTheme(text) : null,
   };
+
+  if (ctx.phase === 'workbook') {
+    if (!text) {
+      return base('unclear', 'workbook', { ...langSlots }, 1);
+    }
+    const items = splitItems(text);
+    let workbookClass: string | undefined;
+    const exId = ctx.workbook?.exerciseId;
+    if (exId === 'influence-circle') {
+      if (/不能|没办法|只能看|关注圈/.test(text) && !/我可以|动手|影响圈/.test(text)) {
+        workbookClass = '关注圈';
+      } else if (/我可以|动手|影响圈|(?:^|[^不])能/.test(text)) {
+        workbookClass = '影响圈';
+      }
+    } else if (exId === 'quadrant-sort') {
+      if (/重要且紧急|又急又重要/.test(text)) workbookClass = 'Q1 重要且紧急';
+      else if (/重要不紧急|重要但不急|不急但重要/.test(text)) workbookClass = 'Q2 重要不紧急';
+      else if (/紧急不重要|急但不/.test(text)) workbookClass = 'Q3 紧急不重要';
+      else if (/不重要不紧急|既不急也不/.test(text)) workbookClass = 'Q4 不重要不紧急';
+    }
+    return base(
+      'provide_clue',
+      'workbook',
+      { ...langSlots, workbookItems: items, workbookClass },
+      0.9,
+    );
+  }
 
   if (ctx.phase === 'cold-start' && ctx.coldStartStep === 'permission') {
     const granted = !text || PERMISSION_GRANT.test(text);
@@ -229,6 +257,8 @@ export function coalesceUnderstanding(
       reactivePhrases: model.slots?.reactivePhrases ?? local.slots.reactivePhrases,
       proactivePhrases: model.slots?.proactivePhrases ?? local.slots.proactivePhrases,
       clueText: model.slots?.clueText?.trim() || local.slots.clueText,
+      workbookItems: model.slots?.workbookItems ?? local.slots.workbookItems,
+      workbookClass: model.slots?.workbookClass?.trim() || local.slots.workbookClass,
     },
     source: 'model',
   };

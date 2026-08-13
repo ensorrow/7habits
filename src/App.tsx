@@ -3,6 +3,7 @@ import { useAppStore } from './store';
 import { levelLabel } from './services/emotionalAccount';
 import { hoursBetween, analyzeCalendar } from './services/calendar';
 import { startOfWeek, addDays } from 'date-fns';
+import WorkbookView from './WorkbookView';
 import './App.css';
 
 function MenuBar() {
@@ -35,6 +36,12 @@ function MenuBar() {
           onClick={() => setView('chat')}
         >
           对话
+        </button>
+        <button
+          className={`menubar-btn ${view === 'workbook' ? 'active' : ''}`}
+          onClick={() => setView('workbook')}
+        >
+          练习册
         </button>
         <button
           className={`menubar-btn ${view === 'dashboard' ? 'active' : ''}`}
@@ -85,6 +92,7 @@ function ChatWindow() {
   const coldStep = useAppStore((s) => s.coldStartStep);
   const startWeekly = useAppStore((s) => s.startWeeklyReview);
   const skipWeekly = useAppStore((s) => s.skipWeeklyReview);
+  const setView = useAppStore((s) => s.setView);
   const confirmRoles = useAppStore((s) => s.confirmRoles);
   const confirmMission = useAppStore((s) => s.confirmMissionProposal);
   const confirmJournal = useAppStore((s) => s.confirmJournal);
@@ -134,7 +142,7 @@ function ChatWindow() {
     <section className="panel" aria-label="导师对话">
       <div className="panel-header">
         <h1>7习惯导师</h1>
-        <p>镜子，不是秘书。在具体事件里，让你看见自己的范式。</p>
+        <p>镜子，不是秘书。在具体事件里，让你看见自己的范式。也可以打开练习册，把书里的表做起来。</p>
         {source && (
           <p className="engine-badge" data-source={source}>
             {source === 'qoder' ? 'Qoder Agent' : '本地规则引擎'}
@@ -190,6 +198,16 @@ function ChatWindow() {
               {q}
             </button>
           ))}
+          {phase === 'cold-start' && (
+            <button className="chip" disabled={busy} onClick={() => setView('workbook')}>
+              先去做练习册
+            </button>
+          )}
+          {phase === 'daily' && (
+            <button className="chip" disabled={busy} onClick={() => setView('workbook')}>
+              打开练习册
+            </button>
+          )}
           {phase === 'daily' && (
             <button
               className="chip"
@@ -275,7 +293,7 @@ function RoleDashboard() {
       <div className="empty-dashboard">
           完成冷启动后，这里会显示各角色本周投入。
           <br />
-          先回到对话，让导师看见你。
+          也可以先打开练习册，从书里的表开始——不需要日历。
         </div>
       </section>
     );
@@ -564,6 +582,7 @@ export default function App() {
   const hydrated = useAppStore((s) => s.hydrated);
   const roles = useAppStore((s) => s.roles);
   const showDashBesideChat = view === 'chat' && roles.length > 0;
+  const showWorkbookSplit = view === 'workbook';
 
   useEffect(() => {
     bootstrap();
@@ -579,13 +598,14 @@ export default function App() {
   return (
     <div className="app-shell">
       <MenuBar />
-      <main className={`workspace ${showDashBesideChat ? 'split' : ''}`}>
+      <main className={`workspace ${showDashBesideChat || showWorkbookSplit ? 'split' : ''} ${showWorkbookSplit ? 'workbook-workspace' : ''}`}>
         {view === 'chat' && (
           <>
             <ChatWindow />
             {showDashBesideChat && <RoleDashboard />}
           </>
         )}
+        {view === 'workbook' && <WorkbookView />}
         {view === 'dashboard' && <RoleDashboard />}
         {view === 'settings' && <SettingsPanel />}
       </main>

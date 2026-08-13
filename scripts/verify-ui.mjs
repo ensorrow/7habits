@@ -110,6 +110,32 @@ async function main() {
   console.log('UI_CHECK has_calendar_insight=' + hasCalendarInsight);
   console.log('UI_CHECK has_roles=' + hasRoles);
 
+  await page.getByRole('button', { name: '练习册' }).click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/08-workbook-catalog.png`, fullPage: true });
+  console.log('SHOT 08 workbook catalog');
+
+  const startInfluence = page.locator('.workbook-card', { hasText: '影响圈' }).locator('button', { hasText: '开始' });
+  await startInfluence.first().click();
+  await page.waitForSelector('.workbook-practice-chat .bubble.mentor', { timeout: 10000 });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/09-workbook-practice.png`, fullPage: true });
+  console.log('SHOT 09 workbook practice');
+
+  const wbChip = page.locator('.workbook-practice-chat button.chip', { hasText: '工作截止日期' });
+  if ((await wbChip.count()) > 0) {
+    await wbChip.first().click();
+    await page.waitForTimeout(800);
+  }
+  await page.screenshot({ path: `${OUT}/10-workbook-table.png`, fullPage: true });
+  console.log('SHOT 10 workbook table');
+
+  const workbookText = await page.locator('body').innerText();
+  const hasWorkbook = workbookText.includes('练习册') && workbookText.includes('影响圈');
+  const hasLivingTable = (await page.locator('.workbook-table, .workbook-empty-table').count()) > 0;
+  console.log('UI_CHECK has_workbook=' + hasWorkbook);
+  console.log('UI_CHECK has_living_table=' + hasLivingTable);
+
   const failed = [
     !hasPatField,
     !hasPatLabel,
@@ -117,6 +143,8 @@ async function main() {
     !hasBrand,
     !hasCalendarInsight,
     !hasRoles,
+    !hasWorkbook,
+    !hasLivingTable,
   ].some(Boolean);
 
   await browser.close();

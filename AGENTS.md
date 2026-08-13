@@ -8,9 +8,10 @@ The current codebase includes the **MVP web prototype** (L2) plus the **macOS-na
 
 ### Layout (single package at repo root + macos/)
 
-- `src/App.tsx`, `src/main.tsx`, `src/store.ts` — UI + Zustand store.
-- `src/types/index.ts` — domain types (`Role`, `CalendarEvent`, `EmotionalAccount`, intervention types, cold-start / weekly-review phases…).
+- `src/App.tsx`, `src/main.tsx`, `src/store.ts`, `src/WorkbookView.tsx` — UI + Zustand store。
+- `src/types/index.ts`, `src/types/workbook.ts` — domain types（含练习册活表）。
 - `src/services/` — platform-agnostic mentor logic:
+  - `workbook.ts` + `workbookCatalog.ts` — **练习册**：书中「亲自试一试」的状态机与目录。
   - `calendar.ts` — **L2 mock-data seam**: `generateMockCalendar()` produces `CalendarEvent[]`. L3 uses EventKit (`macos/.../EventKitCalendarStore.swift`) for the same shape.
   - `mentor.ts` (+ `mentor.test.ts`), `interventions.ts`, `language.ts`, `emotionalAccount.ts`, `habits.ts` (7 habits → product mechanisms + `habitFocus` tagging).
   - `mentorClient.ts` — browser client for the optional Qoder agent API (`/api/mentor/*`).

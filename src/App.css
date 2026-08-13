@@ -127,10 +127,18 @@
   max-width: 1140px;
 }
 
+.workspace.workbook-workspace {
+  max-width: 1180px;
+}
+
 @media (min-width: 960px) {
   .workspace.split {
     grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.85fr);
     align-items: start;
+  }
+
+  .workspace.workbook-workspace {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -692,4 +700,151 @@
   .btn-primary {
     padding: 0.75rem 1rem;
   }
+}
+
+.workbook-split {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .workbook-split {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+    align-items: start;
+  }
+}
+
+.workbook-catalog,
+.workbook-sheet,
+.workbook-practice-chat {
+  min-height: 70vh;
+}
+
+.workbook-kicker {
+  margin: 0 0 0.35rem !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+.workbook-catalog-body {
+  padding: 1.2rem 1.5rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.workbook-habit-group h2 {
+  margin: 0 0 0.7rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.workbook-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.workbook-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.05rem 1.05rem;
+  background: var(--surface-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.workbook-card.recommended {
+  border-color: rgba(15, 74, 60, 0.35);
+  background: linear-gradient(165deg, #eef6f2, #fbfcfb);
+}
+
+.workbook-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.workbook-habit {
+  color: var(--accent);
+}
+
+.workbook-card h3 {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+}
+
+.workbook-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.workbook-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.workbook-card-actions .btn-primary {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.88rem;
+}
+
+.workbook-sheet .panel-header {
+  position: relative;
+}
+
+.workbook-back {
+  margin-top: 0.75rem;
+}
+
+.workbook-table-wrap {
+  padding: 0.4rem 1.5rem 1.5rem;
+  overflow-x: auto;
+}
+
+.workbook-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.workbook-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.workbook-table td {
+  padding: 0.55rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: top;
+  line-height: 1.45;
+}
+
+.workbook-empty-table {
+  padding: 2rem 1.5rem;
+  color: var(--muted);
+  font-family: var(--font-display);
+  line-height: 1.6;
 }

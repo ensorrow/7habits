@@ -19,6 +19,8 @@ import type {
   WeeklyReviewAct,
   WeeklyStats,
 } from './types';
+import type { WorkbookExerciseId, WorkbookSession, WorkbookState } from './types/workbook';
+import { createWorkbookSession } from './services/workbook';
 import {
   analyzeCalendar,
   computeRoleStarveWeeks,
@@ -81,6 +83,8 @@ interface AppStore {
   lastWeeklyReviewAt?: string;
   /** Stage C: stay_and_probe count on current act */
   actProbeCount: number;
+  workbook: WorkbookState;
+  workbookActProbeCount: number;
 
   setView: (view: AppView) => void;
   setVolume: (v: AppSettings['volume']) => void;
@@ -102,6 +106,10 @@ interface AppStore {
   confirmJournal: () => void;
   updateRole: (id: string, patch: Partial<Role>) => void;
   addBigRock: (rock: Omit<BigRock, 'id' | 'status'>) => void;
+  startWorkbook: (exerciseId: WorkbookExerciseId) => Promise<void>;
+  sendWorkbookMessage: (text: string) => Promise<void>;
+  leaveWorkbookPractice: () => void;
+  resumeWorkbook: (sessionId: string) => Promise<void>;
   resetAll: () => Promise<void>;
 }
 
@@ -320,6 +328,110 @@ async function runMentorTurn(
   }
 }
 
+function buildWorkbookCtx(s: AppStore): MentorContext {
+  return {
+    ...buildCtx(s),
+    phase: 'workbook',
+    workbook: s.workbook.active ?? undefined,
+    messages: s.workbook.active?.messages ?? [],
+    actProbeCount: s.workbookActProbeCount,
+  };
+}
+
+function applyWorkbookReply(
+  get: () => AppStore,
+  set: (p: Partial<AppStore>) => void,
+  reply: ReturnType<typeof respond>,
+) {
+  const s = get();
+  const turn = reply.workbookTurn;
+  if (!s.workbook.active) return;
+
+  const messages = [...s.workbook.active.messages, msg('mentor', reply.content)];
+  const nextSession: WorkbookSession = turn
+    ? { ...turn.session, messages }
+    : { ...s.workbook.active, messages };
+
+  let account = s.emotionalAccount;
+  if (reply.deposit) account = deposit(account, reply.deposit, 'workbook');
+
+  let roles = s.roles;
+  if (reply.suggestRoles && reply.suggestRoles.length > 0) {
+    roles = reply.suggestRoles.map((r) => ({ ...r, confirmed: false }));
+  }
+
+  let pendingMissionProposal = s.pendingMissionProposal;
+  if (reply.proposeMission) pendingMissionProposal = reply.proposeMission;
+
+  let mission = s.mission;
+  const harvest = turn?.harvest;
+  if (harvest?.type === 'mission') {
+    const clues = [...mission.clues];
+    for (const c of harvest.clues) {
+      if (c && !clues.includes(c)) clues.push(c);
+    }
+    mission = { ...mission, clues, updatedAt: formatISO(new Date()) };
+  }
+
+  let rocks = s.rocks;
+  if (harvest?.type === 'rocks') {
+    const weekOf = formatISO(new Date(), { representation: 'date' });
+    const extras: BigRock[] = harvest.rocks.map((r) => ({
+      id: uuid(),
+      roleId: s.roles.find((x) => x.name === r.roleName)?.id ?? r.roleName,
+      title: r.title,
+      weekOf,
+      status: 'planned',
+    }));
+    rocks = [...rocks, ...extras];
+  }
+
+  const prev = s.workbook.active;
+  const advanced =
+    nextSession.stepIndex !== prev.stepIndex ||
+    nextSession.status !== prev.status;
+  const probed = reply.action?.effective.type === 'stay_and_probe' && !advanced;
+
+  set({
+    workbook: { active: nextSession, history: s.workbook.history },
+    emotionalAccount: account,
+    roles,
+    pendingMissionProposal,
+    mission,
+    rocks,
+    workbookActProbeCount: advanced
+      ? 0
+      : probed
+        ? s.workbookActProbeCount + 1
+        : s.workbookActProbeCount,
+  });
+}
+
+async function runWorkbookTurn(
+  get: () => AppStore,
+  set: (p: Partial<AppStore>) => void,
+  userText?: string,
+) {
+  if (get().mentorBusy) return;
+  set({ mentorBusy: true, lastMentorError: undefined });
+  try {
+    const useAgent = get().settings.mentorEngine !== 'local';
+    const result = await requestMentorTurn(
+      buildWorkbookCtx(get()),
+      userText,
+      useAgent,
+      get().settings.qoderPat,
+    );
+    applyWorkbookReply(get, set, result.reply);
+    set({
+      lastMentorSource: result.source,
+      lastMentorError: result.error,
+    });
+  } finally {
+    set({ mentorBusy: false });
+  }
+}
+
 async function maybeAutoAdvance(get: () => AppStore, set: (p: Partial<AppStore>) => void) {
   const after = get();
   if (after.mentorPhase !== 'cold-start') return;
@@ -390,6 +502,8 @@ export const useAppStore = create<AppStore>()(
       missedWeeklyReviews: 0,
       consecutiveIgnores: 0,
       actProbeCount: 0,
+      workbook: { active: null, history: [] },
+      workbookActProbeCount: 0,
 
       setView: (view) => set({ view }),
       setVolume: (volume) =>
@@ -703,6 +817,86 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
+      startWorkbook: async (exerciseId) => {
+        const s = get();
+        let history = s.workbook.history;
+        if (s.workbook.active) {
+          const archived =
+            s.workbook.active.status === 'active'
+              ? { ...s.workbook.active, status: 'paused' as const }
+              : s.workbook.active;
+          history = [archived, ...history.filter((h) => h.id !== archived.id)];
+        }
+        set({
+          workbook: { active: createWorkbookSession(exerciseId), history },
+          view: 'workbook',
+          workbookActProbeCount: 0,
+        });
+        await runWorkbookTurn(get, set);
+      },
+
+      sendWorkbookMessage: async (text) => {
+        const trimmed = text.trim();
+        if (!trimmed || get().mentorBusy) return;
+        const s = get();
+        if (!s.workbook.active) return;
+        const languageStats = mergeLanguageStats(s.languageStats, trimmed);
+        set({
+          languageStats,
+          workbook: {
+            ...s.workbook,
+            active: {
+              ...s.workbook.active,
+              messages: [...s.workbook.active.messages, msg('user', trimmed)],
+            },
+          },
+        });
+        await runWorkbookTurn(get, set, trimmed);
+      },
+
+      leaveWorkbookPractice: () => {
+        const s = get();
+        const active = s.workbook.active;
+        if (!active) return;
+        const archived =
+          active.status === 'active' ? { ...active, status: 'paused' as const } : active;
+        set({
+          workbook: {
+            active: null,
+            history: [archived, ...s.workbook.history.filter((h) => h.id !== archived.id)],
+          },
+        });
+      },
+
+      resumeWorkbook: async (sessionId) => {
+        const s = get();
+        const found =
+          s.workbook.active?.id === sessionId
+            ? s.workbook.active
+            : s.workbook.history.find((h) => h.id === sessionId);
+        if (!found) return;
+        let history = s.workbook.history.filter((h) => h.id !== sessionId);
+        if (s.workbook.active && s.workbook.active.id !== sessionId) {
+          const archived =
+            s.workbook.active.status === 'active'
+              ? { ...s.workbook.active, status: 'paused' as const }
+              : s.workbook.active;
+          history = [archived, ...history.filter((h) => h.id !== archived.id)];
+        }
+        const resumed = {
+          ...found,
+          status: found.status === 'done' ? ('done' as const) : ('active' as const),
+        };
+        set({
+          workbook: { active: resumed, history },
+          view: 'workbook',
+          workbookActProbeCount: 0,
+        });
+        if (resumed.status === 'active' && resumed.messages.length === 0) {
+          await runWorkbookTurn(get, set);
+        }
+      },
+
       resetAll: async () => {
         set({
           view: 'chat',
@@ -749,6 +943,8 @@ export const useAppStore = create<AppStore>()(
           lastJournalDraft: undefined,
           lastWeeklyReviewAt: undefined,
           actProbeCount: 0,
+          workbook: { active: null, history: [] },
+          workbookActProbeCount: 0,
         });
         await runMentorTurn(get, set);
       },
@@ -779,6 +975,7 @@ export const useAppStore = create<AppStore>()(
         lastJournalDraft: s.lastJournalDraft,
         lastWeeklyReviewAt: s.lastWeeklyReviewAt,
         actProbeCount: s.actProbeCount,
+        workbook: s.workbook,
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<AppStore> | undefined;
@@ -792,6 +989,7 @@ export const useAppStore = create<AppStore>()(
           ...current,
           ...p,
           settings,
+          workbook: p?.workbook ?? current.workbook,
           mentorBusy: false,
           lastMentorSource: null,
           agentStatus: null,
