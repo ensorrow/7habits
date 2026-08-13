@@ -34,6 +34,7 @@ export type ConversationTopic =
   | 'big_rocks'
   | 'todos'
   | 'root_cause'
+  | 'workbook'
   | 'general'
   | 'none';
 
@@ -60,6 +61,10 @@ export interface UnderstandingSlots {
   rock?: RockSlots;
   /** Short text to store as a mission/values clue */
   clueText?: string;
+  /** Workbook: items extracted from this utterance */
+  workbookItems?: string[];
+  /** Workbook: classification label (影响圈 / Q2 …) */
+  workbookClass?: string;
 }
 
 export interface UnderstandingResult {

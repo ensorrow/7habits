@@ -29,7 +29,7 @@ function baseCtx(over: Partial<MentorContext> = {}): MentorContext {
 describe('habits canon', () => {
   it('defines all seven habits with MVP scope', () => {
     expect(HABITS).toHaveLength(7);
-    expect(mvpHabits().map((h) => h.id)).toEqual([1, 2, 3, 7]);
+    expect(mvpHabits().map((h) => h.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('maps flow turns to product mechanisms, not slogans', () => {
@@ -40,6 +40,7 @@ describe('habits canon', () => {
     expect(
       habitFocusForTurn({ phase: 'daily', dailyKind: 'reactive-language' }),
     ).toEqual([1]);
+    expect(habitFocusForTurn({ phase: 'workbook', workbookHabitId: 4 })).toEqual([4]);
   });
 
   it('prompt block forbids textbook dumps and names mechanisms', () => {
@@ -48,6 +49,7 @@ describe('habits canon', () => {
     expect(block).toContain('大石头');
     expect(block).toContain('磨刀');
     expect(block).toContain('冷启动');
+    expect(block).toContain('练习册');
   });
 });
 

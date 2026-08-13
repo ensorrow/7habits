@@ -12,6 +12,7 @@ import {
 } from '../src/services/mentor';
 import { demoSwallowedRock, evaluateInterventions } from '../src/services/interventions';
 import { analyzeLanguage } from '../src/services/language';
+import { advanceWorkbook, createWorkbookSession } from '../src/services/workbook';
 
 type Step = { who: 'mentor' | 'user' | 'system'; text: string; ok?: boolean; note?: string };
 
@@ -216,6 +217,20 @@ const silenced = evaluateInterventions({
   silenceMode: true,
 });
 assert('静默熔断生效', silenced === null, `hit=${silenced?.priority ?? 'null'}`);
+
+console.log('\n========== 5. 练习册（亲自试一试） ==========\n');
+
+let wb = createWorkbookSession('influence-circle');
+let wt = advanceWorkbook(wb, undefined);
+assert('练习册开场不讲教材编号', !/习惯1/.test(wt.content) && wt.content.includes('亲自试一试'), wt.content.slice(0, 80));
+wt = advanceWorkbook(wt.session, '加班，家人，股市');
+assert('倒出心事即成行', wt.session.rows.length === 3, `rows=${wt.session.rows.length}`);
+wt = advanceWorkbook(wt.session, '能，我可以动手');
+wt = advanceWorkbook(wt.session, '能');
+wt = advanceWorkbook(wt.session, '不能');
+assert('不能归入关注圈', wt.session.rows[2]?.cells.circle === '关注圈', JSON.stringify(wt.session.rows[2]?.cells));
+wt = advanceWorkbook(wt.session, '今晚先回那封信');
+assert('影响圈练习可做完', wt.complete === true && wt.session.status === 'done', `status=${wt.session.status}`);
 
 console.log('\n========== 对话实录（摘要） ==========\n');
 for (const s of log) {

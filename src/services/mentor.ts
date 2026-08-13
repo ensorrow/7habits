@@ -27,6 +27,9 @@ import type {
   WeeklyReviewAct,
   WeeklyStats,
 } from '../types';
+import type { WorkbookSession, WorkbookTurnResult } from '../types/workbook';
+import { advanceWorkbook } from './workbook';
+import { exerciseById } from './workbookCatalog';
 import type {
   ActionDecision,
   MentorActionProposal,
@@ -44,7 +47,9 @@ export interface MentorContext {
   messages: ChatMessage[];
   coldStartStep: ColdStartStep;
   weeklyReviewAct: WeeklyReviewAct;
-  phase: 'cold-start' | 'daily' | 'weekly-review';
+  phase: 'cold-start' | 'daily' | 'weekly-review' | 'workbook';
+  /** Active "亲自试一试" session — parallel to calendar mentor phase. */
+  workbook?: WorkbookSession;
   roles: Role[];
   events: CalendarEvent[];
   todos?: TodoItem[];
@@ -89,6 +94,8 @@ export interface MentorReply {
   withdraw?: number;
   scheduleReview?: boolean;
   phase?: 'cold-start' | 'daily' | 'weekly-review';
+  /** Workbook engine result for the store to apply. */
+  workbookTurn?: WorkbookTurnResult;
   extractClue?: string;
   /** Which habit mechanisms this turn exercises (product map, not slogans) */
   habitFocus?: HabitId[];
@@ -1004,6 +1011,46 @@ export function dailyReply(
  * Stage C: consumes refereed `action` (model proposes, local referees).
  * Without either, falls back to local degrade paths.
  */
+export function workbookReply(
+  ctx: MentorContext,
+  userText?: string,
+  understanding?: UnderstandingResult,
+  action?: MentorActionProposal | ActionDecision,
+): MentorReply {
+  const u = resolveUnderstanding(ctx, userText, understanding);
+  const decision = resolveAction(ctx, userText, u, action);
+  const session = ctx.workbook;
+  if (!session) {
+    return withAction(
+      withHabitFocus(
+        { content: '练习册还没打开。从「练习册」里挑一张表开始。' },
+        [],
+      ),
+      decision,
+    );
+  }
+  const turn = advanceWorkbook(session, userText, u, decision);
+  const habitId = exerciseById(session.exerciseId).habitId;
+  const harvest = turn.harvest;
+  return withAction(
+    withHabitFocus(
+      {
+        content: turn.content,
+        workbookTurn: turn,
+        deposit: turn.complete ? 4 : userText ? 2 : 1,
+        suggestRoles: harvest?.type === 'roles' ? harvest.roles : undefined,
+        proposeMission: harvest?.type === 'mission' ? harvest.statement : undefined,
+        extractClue:
+          harvest?.type === 'mission'
+            ? harvest.clues.slice(-1)[0]
+            : u.slots.clueText ?? userText,
+      },
+      [habitId],
+    ),
+    decision,
+  );
+}
+
 export function respond(
   ctx: MentorContext,
   userText?: string,
@@ -1012,6 +1059,9 @@ export function respond(
 ): MentorReply {
   const u = resolveUnderstanding(ctx, userText, understanding);
   const decision = resolveAction(ctx, userText, u, action);
+  if (ctx.phase === 'workbook') {
+    return workbookReply(ctx, userText, u, decision);
+  }
   if (ctx.phase === 'cold-start' && ctx.coldStartStep !== 'done') {
     return coldStartReply(ctx, userText, u, decision);
   }

@@ -2,7 +2,7 @@ export type VolumeSetting = 'quiet' | 'standard' | 'strict';
 
 export type EmotionalLevel = 'stranger' | 'acquainted' | 'trusted' | 'deep';
 
-export type AppView = 'chat' | 'dashboard' | 'settings';
+export type AppView = 'chat' | 'dashboard' | 'workbook' | 'settings';
 
 export type AppPhase = 'cold-start' | 'daily' | 'weekly-review';
 
@@ -162,6 +162,19 @@ export type {
   UnderstandingSlots,
   UnderstandingResult,
 } from './understanding';
+
+export type {
+  WorkbookExerciseId,
+  WorkbookStatus,
+  WorkbookColumn,
+  WorkbookStep,
+  WorkbookExercise,
+  WorkbookRow,
+  WorkbookSession,
+  WorkbookState,
+  WorkbookHarvest,
+  WorkbookTurnResult,
+} from './workbook';
 
 export type {
   MentorActionType,

@@ -57,8 +57,10 @@ export function canProbeHere(ctx: MentorContext): boolean {
   if (ctx.phase === 'weekly-review' && ctx.weeklyReviewAct !== 'done') {
     return WEEKLY_PROBE_ACTS.includes(ctx.weeklyReviewAct);
   }
-  // Daily: allow one follow-up probe (model-driven); local degrade won't choose it.
-  if (ctx.phase === 'daily') return (ctx.actProbeCount ?? 0) < MAX_PROBES_PER_ACT;
+  // Daily / workbook: allow one follow-up probe (model-driven); local degrade won't choose it.
+  if (ctx.phase === 'daily' || ctx.phase === 'workbook') {
+    return (ctx.actProbeCount ?? 0) < MAX_PROBES_PER_ACT;
+  }
   return false;
 }
 
@@ -104,13 +106,14 @@ export function proposeLocal(
     });
   }
 
-  // Ritual phases: local never probes.
+  // Ritual / workbook: local never probes (extraction is local).
   if (
+    ctx.phase === 'workbook' ||
     (ctx.phase === 'cold-start' && ctx.coldStartStep !== 'done') ||
     (ctx.phase === 'weekly-review' && ctx.weeklyReviewAct !== 'done')
   ) {
     return proposal('advance_act', {
-      reason: 'local degrade: ritual always advances',
+      reason: 'local degrade: ritual/workbook always advances',
       confidence: 0.95,
     });
   }
@@ -428,6 +431,10 @@ export function probeContent(
       default:
         return '我想再确认一句——你刚才说的，能更具体一点吗？';
     }
+  }
+
+  if (ctx.phase === 'workbook') {
+    return '再说具体一点——我好填进表里。一件事、一个名字、一个时间，都可以。';
   }
 
   // Daily follow-up

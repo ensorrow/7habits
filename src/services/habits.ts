@@ -32,6 +32,7 @@ export const HABITS: readonly HabitDefinition[] = [
     nameEn: 'Be Proactive',
     mvp: true,
     mechanisms: [
+      '练习册：影响圈、把「不得不」改成选择',
       '语言模式追踪：反应式（不得不/没办法）→ 主动式（我选择）',
       '干预时问选择与责任圈，不指责处境',
     ],
@@ -46,7 +47,7 @@ export const HABITS: readonly HabitDefinition[] = [
     nameZh: '以终为始',
     nameEn: 'Begin with the End in Mind',
     mvp: true,
-    mechanisms: ['使命/角色活文档', '对话式萃取价值观线索', '角色仪表盘作为证据面板'],
+    mechanisms: ['练习册：角色与一年后的图、使命草稿', '使命/角色活文档', '对话式萃取价值观线索', '角色仪表盘作为证据面板'],
     mentorDo: [
       '从具体事件里沉淀角色草稿，请用户确认而非填表',
       '用「宣言 vs 行为」对照使命草稿与日历投入',
@@ -59,6 +60,7 @@ export const HABITS: readonly HabitDefinition[] = [
     nameEn: 'Put First Things First',
     mvp: true,
     mechanisms: [
+      '练习册：四象限分类、本周大石头',
       '周回顾大石头排程（周计划 > 日计划）',
       '第二象限偏好：重要不紧急优先于救火',
       'P0 承诺保卫：大石头被吞掉只问去向',
@@ -73,28 +75,35 @@ export const HABITS: readonly HabitDefinition[] = [
     id: 4,
     nameZh: '双赢思维',
     nameEn: 'Think Win-Win',
-    mvp: false,
-    mechanisms: ['后期：沟通记录中的承诺与互惠模式（MVP 不碰）'],
-    mentorDo: ['MVP 不主动展开人际习惯教学'],
-    mentorDont: ['监视邮件/IM', '在无证据时空谈双赢'],
+    mvp: true,
+    mechanisms: [
+      '练习册：对一个具体的人记关系账户（存款/取款/这周的一笔）',
+      '后期：沟通记录中的承诺与互惠模式',
+    ],
+    mentorDo: ['练习册里问具体行为，不评价性格', '无证据时不空谈双赢'],
+    mentorDont: ['监视邮件/IM', '把态度当成存款'],
   },
   {
     id: 5,
     nameZh: '知彼解己',
     nameEn: 'Seek First to Understand',
-    mvp: false,
-    mechanisms: ['情感账户存款：先倾听再挑战', '接得住反驳'],
-    mentorDo: ['用户反驳时先追问对方版本，再坚持观察'],
+    mvp: true,
+    mechanisms: [
+      '练习册：先听懂——认出评价/建议/追问/解读，改写第一句',
+      '情感账户存款：先倾听再挑战',
+      '接得住反驳',
+    ],
+    mentorDo: ['用户反驳时先追问对方版本，再坚持观察', '练习册里只问那一次对话里你做了什么'],
     mentorDont: ['秒怂收回证据', '死杠不听'],
   },
   {
     id: 6,
     nameZh: '统合综效',
     nameEn: 'Synergize',
-    mvp: false,
-    mechanisms: ['后期：角色冲突时寻找第三方案（MVP 不做）'],
-    mentorDo: ['MVP 保持克制，不硬凑综效话术'],
-    mentorDont: ['为了显得「懂柯维」而堆概念'],
+    mvp: true,
+    mechanisms: ['练习册：冲突中的我的赢 / 对方的赢 / 第三方案'],
+    mentorDo: ['帮用户写出两边的赢，再问有没有第三种走法', '「还没有」也是合法的一格'],
+    mentorDont: ['为了显得「懂柯维」而堆概念', '把妥协各让一半当成综效'],
   },
   {
     id: 7,
@@ -102,6 +111,7 @@ export const HABITS: readonly HabitDefinition[] = [
     nameEn: 'Sharpen the Saw',
     mvp: true,
     mechanisms: [
+      '练习册：四维磨刀本周安排',
       '周回顾强制磨刀：身体/心智/社交/精神四维至少一维有安排',
       '大小可妥协，有无不妥协',
     ],
@@ -152,9 +162,10 @@ export function mvpHabits(): HabitDefinition[] {
  * Used to tag MentorReply so the expression layer stays aligned without inventing pedagogy.
  */
 export function habitFocusForTurn(input: {
-  phase: 'cold-start' | 'daily' | 'weekly-review';
+  phase: 'cold-start' | 'daily' | 'weekly-review' | 'workbook';
   coldStartStep?: string;
   weeklyReviewAct?: string;
+  workbookHabitId?: HabitId;
   dailyKind?:
     | 'reactive-language'
     | 'proactive-language'
@@ -167,7 +178,11 @@ export function habitFocusForTurn(input: {
     | 'promise-followup'
     | 'generic';
 }): HabitId[] {
-  const { phase, coldStartStep, weeklyReviewAct, dailyKind } = input;
+  const { phase, coldStartStep, weeklyReviewAct, dailyKind, workbookHabitId } = input;
+
+  if (phase === 'workbook') {
+    return workbookHabitId ? [workbookHabitId] : [];
+  }
 
   if (phase === 'cold-start') {
     switch (coldStartStep) {
@@ -260,6 +275,9 @@ export function habitsPromptBlock(): string {
     '- 周回顾：observation→no-regret→confrontation（只挑一处）→role-patrol→sharpen→schedule→closing',
   );
   lines.push('- 日常：语言模式 / 救火根因 / 大石头入历；每周主动开口预算约 3 次');
+  lines.push(
+    '- 练习册：用户打开「亲自试一试」表时，用提问帮他填表，禁止改成教材讲解；表是产物，对话是填法',
+  );
   lines.push('- 情感账户：第一周纯教练；断言必须带日历证据；brief 的意图与阶段不可改');
 
   return lines.join('\n');
